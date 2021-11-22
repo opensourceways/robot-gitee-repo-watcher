@@ -13,6 +13,9 @@ import (
 const botName = ""
 
 type iClient interface {
+	GetRepos(org string) ([]sdk.Project, error)
+	GetPathContent(org, repo, path, ref string) (sdk.Content, error)
+	GetDirectoryTree(org, repo, sha string, recursive int32) (sdk.Tree, error)
 }
 
 func newRobot(cli iClient) *robot {
