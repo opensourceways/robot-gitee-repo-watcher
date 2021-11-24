@@ -1,174 +1,92 @@
 package main
 
 import (
-	"path/filepath"
-	"strings"
-
-	"k8s.io/apimachinery/pkg/util/sets"
+	"context"
 
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
 )
 
-func (bot *robot) run(watchingRepo, repoFilePath, sigFilePath, sigDir string) error {
-	v := strings.Split(watchingRepo, "/")
-
-	repos, err := bot.initExpectRepos(repoFileInfo)
-	if err != nil {
-		return err
-	}
-
-	actualRepos, err := bot.loadALLRepos(repos.repos.Community)
-	if err != nil {
-		return err
-	}
-
-	//return bot.watch(actualRepos,
+type expectRepoInfo struct {
+	expectRepoState *community.Repository
+	expectOwners    []string
+	org             string
 }
 
-func (bot *robot) stop() {
+func (bot *robot) run(ctx context.Context, opt *options) error {
+	w, _ := opt.parseWatchingRepo()
 
+	expect := &expectState{
+		w:   w,
+		cli: bot.cli,
+	}
+
+	org, err := expect.init(opt.repoFilePath, opt.sigFilePath, opt.sigDir)
+	if err != nil {
+		return err
+	}
+
+	local, err := bot.loadALLRepos(org)
+	if err != nil {
+		return err
+	}
+
+	bot.watch(ctx, org, local, expect)
+	return nil
 }
 
-func (bot *robot) watch(actual *actualRepoState, repoFileInfo, sigFileInfo repoFile) error {
-	repos, err := bot.initExpectRepos(repoFileInfo)
-	if err != nil {
-		return err
+func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
+	f := func(owners []string, repo *community.Repository) {
+		bot.execTask(
+			local.getOrNewRepo(repo.Name),
+			&expectRepoInfo{
+				org:             org,
+				expectOwners:    owners,
+				expectRepoState: repo,
+			},
+		)
 	}
 
-	sigs, err := bot.initRepoSigs(sigFileInfo)
-	if err != nil {
-		return err
+	isStopped := func() bool {
+		return isCancelled(ctx)
 	}
-
-	sigOwners := map[string]*expectSigOwners{}
 
 	for {
-		allFiles, err := bot.ListAllFilesOfRepo(
-			repoFileInfo.org,
-			repoFileInfo.repo,
-			repoFileInfo.branch,
-		)
-		if err != nil {
-			// log
+		if isStopped() {
+			break
 		}
 
-		if err := repos.update(allFiles[repoFileInfo.path]); err != nil {
-			// log
-		}
-
-		repoMap := make(map[string]*community.Repository)
-		v := repos.repos.Repositories
-		for i := range v {
-			item := &v[i]
-			repoMap[item.Name] = item
-		}
-
-		if err := sigs.update(allFiles[sigFileInfo.path]); err != nil {
-			// log
-		}
-
-		for _, sig := range sigs.sigs.Sigs {
-			sigName := sig.Name
-			sigOwnerFilePath := filepath.Join(
-				filepath.Dir(sigFileInfo.path),
-				sigName, "OWNERS",
-			)
-
-			sigOwner, ok := sigOwners[sigName]
-			if !ok {
-				sigOwner = &expectSigOwners{
-					cli:  bot.cli,
-					file: repoFileInfo,
-				}
-				sigOwner.file.path = sigOwnerFilePath
-				sigOwners[sigName] = sigOwner
-			}
-
-			if err := sigOwner.update(allFiles[sigOwnerFilePath]); err != nil {
-				//log
-				// it should think about the unormal input data
-			}
-
-			for _, repoName := range sig.Repositories {
-				task := &taskInfo{
-					expectSigOwners: sigOwner.owners.Maintainers,
-					expectRepoInfo:  repoMap[repoName],
-					currentState:    actual.getOrNewARepo(repoName),
-				}
-				bot.execTask(task)
-
-				delete(repoMap, repoName)
-			}
-		}
-
-		for repoName, repo := range repoMap {
-			task := &taskInfo{
-				expectRepoInfo: repo,
-				currentState:   actual.getOrNewARepo(repoName),
-			}
-			bot.execTask(task)
-		}
+		expect.check(isStopped, f)
 	}
 }
 
-func (bot *robot) execTask(task *taskInfo) {
-	f := func(isNewRepo bool, branches sets.String, members sets.String) (models.AfterUpdate, error) {
-		if isNewRepo {
-			return bot.handleRepo(task)
+func (bot *robot) execTask(localRepo *models.Repo, expectRepo *expectRepoInfo) {
+	f := func(before models.RepoState) models.RepoState {
+		if !before.Available {
+			return bot.createRepo(expectRepo)
 		}
 
-		newBranches, err := bot.handleBranch(task)
-		if err != nil {
-			//log
-			newBranches = branches.UnsortedList()
+		return models.RepoState{
+			Available: true,
+			Branches:  bot.handleBranch(expectRepo, before.Branches),
+			Members:   bot.handleMember(expectRepo, before.Members),
+			Property:  bot.updateRepo(expectRepo, before.Property),
 		}
-
-		newMembers, err := bot.handleMember(task)
-		if err != nil {
-			//log
-			newMembers = members.UnsortedList()
-		}
-
-		return models.AfterUpdate{
-			Available: isNewRepo,
-			Branches:  newBranches,
-			Members:   newMembers,
-		}, nil
-
 	}
 
-	err := pool.Submit(func() {
-		task.currentState.Update(f)
+	err := bot.pool.Submit(func() {
+		localRepo.Update(f)
 	})
 	if err != nil {
 		//log
 	}
 }
 
-func (bot *robot) handleRepo(task *taskInfo) (models.AfterUpdate, error) {
-
-}
-
-func (bot *robot) handleBranch(task *taskInfo) ([]string, error) {
-
-}
-
-func (bot *robot) handleMember(task *taskInfo) ([]string, error) {
-
-}
-
-func (bot *robot) ListAllFilesOfRepo(org, repo, branch string) (map[string]string, error) {
-	trees, err := bot.cli.GetDirectoryTree(org, repo, branch, 1)
-	if err != nil || len(trees.Tree) == 0 {
-		return nil, err
+func isCancelled(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
-
-	r := make(map[string]string)
-	for i := range trees.Tree {
-		item := &trees.Tree[i]
-		r[item.Path] = item.Sha
-	}
-
-	return r, nil
 }

@@ -1,0 +1,44 @@
+package main
+
+import (
+	"github.com/opensourceways/robot-gitee-repo-watcher/models"
+)
+
+type localState struct {
+	repos map[string]*models.Repo
+}
+
+func (r *localState) getOrNewRepo(repo string) *models.Repo {
+	if v, ok := r.repos[repo]; ok {
+		return v
+	}
+
+	v := models.NewRepo(repo, models.RepoState{})
+	r.repos[repo] = v
+	return v
+}
+
+func (bot *robot) loadALLRepos(org string) (*localState, error) {
+	items, err := bot.cli.GetRepos(org)
+	if err != nil {
+		return nil, err
+	}
+
+	r := localState{
+		repos: make(map[string]*models.Repo),
+	}
+
+	for i := range items {
+		item := &items[i]
+		r.repos[item.Path] = models.NewRepo(item.Path, models.RepoState{
+			Available: true,
+			Members:   item.Members,
+			Property: models.RepoProperty{
+				Private:    item.Private,
+				CanComment: item.CanComment,
+			},
+		})
+	}
+
+	return &r, nil
+}

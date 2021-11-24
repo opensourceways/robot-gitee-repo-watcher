@@ -2,46 +2,66 @@ package models
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
-type Repo struct {
+var empty = struct{}{}
+
+type Repo1 struct {
 	name      string
 	available bool
-	start     chan bool
-	branches  sets.String
-	members   sets.String
+	property  RepoProperty
+
+	start chan struct{}
+
+	branches []community.RepoBranch
+	members  sets.String
+
+	state RepoState
 }
 
 type AfterUpdate struct {
-	Available bool
-	Branches  []string
-	Members   []string
+	NewCreated bool
+	Branches   []community.RepoBranch
+	Members    []string
+	Property   RepoProperty
 }
 
-func (r *Repo) Update(f func(bool, sets.String, sets.String) (AfterUpdate, error)) {
+type RepoState struct {
+	Available bool
+	Branches  []community.RepoBranch
+	Members   []string
+	Property  RepoProperty
+}
+
+type RepoProperty struct {
+	Private    bool
+	CanComment bool
+}
+
+type Repo struct {
+	name  string
+	state RepoState
+	start chan struct{}
+}
+
+func NewRepo(repo string, state RepoState) *Repo {
+	return &Repo{
+		name:  repo,
+		state: state,
+		start: make(chan struct{}),
+	}
+}
+
+func (r *Repo) Update(f func(RepoState) RepoState) {
 	select {
-	case r.start <- true:
+	case r.start <- empty:
 		defer func() {
 			<-r.start
 		}()
 
-		v, err := f(r.available, r.branches, r.members)
-		if err == nil {
-			r.available = v.Available
-			r.branches = sets.NewString(v.Branches...)
-			r.members = sets.NewString(v.Members...)
-		}
-
+		r.state = f(r.state)
 	default:
-	}
-}
-
-func NewRepo(repo string, available bool, members []string) *Repo {
-	return &Repo{
-		name:      repo,
-		available: available,
-		start:     make(chan bool),
-		branches:  sets.NewString(),
-		members:   sets.NewString(members...),
 	}
 }

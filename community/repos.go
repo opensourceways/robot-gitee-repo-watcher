@@ -1,14 +1,17 @@
 package community
 
+const BranchProtected = "protected"
+
 type Repos struct {
 	Version      string       `json:"version,omitempty"`
 	Community    string       `json:"community" required:"true"`
 	Repositories []Repository `json:"repositories,omitempty"`
 }
 
+// TODO: validate
 type Repository struct {
 	Name              string       `json:"name" required:"true"`
-	Type              string       `json:"type,omitempty"`
+	Type              string       `json:"type" required:"true"`
 	RenameFrom        string       `json:"rename_from,omitempty"`
 	Description       string       `json:"description,omitempty"`
 	Commentable       bool         `json:"commentable,omitempty"`
@@ -16,6 +19,10 @@ type Repository struct {
 	Branches          []RepoBranch `json:"branches"`
 
 	RepoMember
+}
+
+func (r *Repository) IsPrivate() bool {
+	return r.Type == "private"
 }
 
 type RepoMember struct {

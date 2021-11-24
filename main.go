@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,27 +12,23 @@ import (
 	"github.com/opensourceways/community-robot-lib/logrusutil"
 	liboptions "github.com/opensourceways/community-robot-lib/options"
 	"github.com/opensourceways/community-robot-lib/secret"
+	"github.com/panjf2000/ants/v2"
 	"github.com/sirupsen/logrus"
 )
 
 type options struct {
-	gitee        liboptions.GiteeOptions
-	watchingRepo string
-	repoFilePath string
-	sigFilePath  string
-	sigDir       string
+	gitee          liboptions.GiteeOptions
+	watchingRepo   string
+	repoFilePath   string
+	sigFilePath    string
+	sigDir         string
+	concurrentSize int
 }
 
 func (o *options) Validate() error {
-	items := strings.Split(o.watchingRepo, "/")
-	if len(items) != 3 {
-		return fmt.Errorf("invalid watching_repo:%s", o.watchingRepo)
-	}
-
-	for _, item := range items {
-		if item == "" {
-			return fmt.Errorf("invalid watching_repo:%s", o.watchingRepo)
-		}
+	_, err := o.parseWatchingRepo()
+	if err != nil {
+		return err
 	}
 
 	v := map[string]string{
@@ -45,7 +42,32 @@ func (o *options) Validate() error {
 		}
 	}
 
+	if o.concurrentSize <= 0 {
+		return fmt.Errorf("concurrent size must be bigger than 0")
+	}
+
 	return o.gitee.Validate()
+}
+
+func (o *options) parseWatchingRepo() (watchingRepoInfo, error) {
+	r := watchingRepoInfo{}
+
+	v := o.watchingRepo
+	items := strings.Split(v, "/")
+	if len(items) != 3 {
+		return r, fmt.Errorf("invalid watching_repo:%s", v)
+	}
+
+	for _, item := range items {
+		if item == "" {
+			return r, fmt.Errorf("invalid watching_repo:%s", v)
+		}
+	}
+
+	r.org = items[0]
+	r.repo = items[1]
+	r.branch = items[2]
+	return r, nil
 }
 
 func gatherOptions(fs *flag.FlagSet, args ...string) options {
@@ -56,6 +78,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.StringVar(&o.repoFilePath, "repo-file-path", "", "Path to repo file. For example: repository/openeuler.yaml")
 	fs.StringVar(&o.sigFilePath, "sig-file-path", "", "Path to sig file. For example: sig/sigs.yaml")
 	fs.StringVar(&o.sigDir, "sig-dir", "", "The directory which includes all the sigs. For example: sig")
+	fs.IntVar(&o.concurrentSize, "concurrent-size", 500, "The concurrent size for doing task.")
 
 	fs.Parse(args)
 	return o
@@ -77,13 +100,33 @@ func main() {
 
 	c := giteeclient.NewClient(secretAgent.GetTokenGenerator(o.gitee.TokenPath))
 
-	p := newRobot(c)
+	pool, err := newPool(o.concurrentSize, logWapper{})
+	if err != nil {
+
+	}
+	defer pool.Release()
+
+	p := newRobot(c, pool)
 
 	defer interrupts.WaitForGracefulShutdown()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	interrupts.OnInterrupt(func() {
-		p.stop()
+		cancel()
 	})
 
-	p.run(o.watchingRep, o.repoFilePath, o.sigFilePath, o.sigDir)
+	p.run(ctx, &o)
+}
+
+func newPool(size int, log ants.Logger) (*ants.Pool, error) {
+	return ants.NewPool(size, ants.WithOptions(ants.Options{
+		Logger: log,
+	}))
+}
+
+type logWapper struct{}
+
+func (l logWapper) Printf(format string, args ...interface{}) {
+	logrus.Infof(format, args...)
 }
