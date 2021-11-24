@@ -20,7 +20,6 @@ push_image(
 go_library(
     name = "go_default_library",
     srcs = [
-        "config.go",
         "expect.go",
         "handle_branch.go",
         "handle_member.go",
