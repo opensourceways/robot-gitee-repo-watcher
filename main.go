@@ -23,6 +23,7 @@ type options struct {
 	sigFilePath    string
 	sigDir         string
 	concurrentSize int
+	interval       int
 }
 
 func (o *options) Validate() error {
@@ -79,6 +80,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.StringVar(&o.sigFilePath, "sig-file-path", "", "Path to sig file. For example: sig/sigs.yaml")
 	fs.StringVar(&o.sigDir, "sig-dir", "", "The directory which includes all the sigs. For example: sig")
 	fs.IntVar(&o.concurrentSize, "concurrent-size", 500, "The concurrent size for doing task.")
+	fs.IntVar(&o.interval, "interval", 0, "The interval between repo checkes. 0 or unset means check repos consecutively. The unit is minute.")
 
 	fs.Parse(args)
 	return o

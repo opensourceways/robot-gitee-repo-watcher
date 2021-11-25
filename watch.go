@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
@@ -31,11 +32,42 @@ func (bot *robot) run(ctx context.Context, opt *options) error {
 		return err
 	}
 
-	bot.watch(ctx, org, local, expect)
+	bot.watch(ctx, org, local, expect, opt.interval)
 	return nil
 }
 
-func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
+func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState, interval int) {
+	if interval <= 0 {
+		for {
+			if isCancelled(ctx) {
+				break
+			}
+
+			bot.checkOnce(ctx, org, local, expect)
+		}
+	} else {
+		t := time.Duration(interval) * time.Minute
+
+		for {
+			if isCancelled(ctx) {
+				break
+			}
+
+			s := time.Now()
+
+			bot.checkOnce(ctx, org, local, expect)
+
+			e := time.Now()
+			if v := e.Sub(s); v < t {
+				time.Sleep(t - v)
+			}
+		}
+	}
+
+	bot.wg.Wait()
+}
+
+func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, expect *expectState) {
 	f := func(repo *community.Repository, owners []string) {
 		if repo == nil {
 			return
@@ -55,15 +87,7 @@ func (bot *robot) watch(ctx context.Context, org string, local *localState, expe
 		return isCancelled(ctx)
 	}
 
-	for {
-		if isStopped() {
-			break
-		}
-
-		expect.check(isStopped, f)
-	}
-
-	bot.wg.Wait()
+	expect.check(isStopped, f)
 }
 
 func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo) {
