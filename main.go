@@ -55,12 +55,12 @@ func (o *options) parseWatchingRepo() (watchingRepoInfo, error) {
 	v := o.watchingRepo
 	items := strings.Split(v, "/")
 	if len(items) != 3 {
-		return r, fmt.Errorf("invalid watching_repo:%s", v)
+		return r, fmt.Errorf("invalid watching-repo:%s", v)
 	}
 
 	for _, item := range items {
 		if item == "" {
-			return r, fmt.Errorf("invalid watching_repo:%s", v)
+			return r, fmt.Errorf("invalid watching-repo:%s", v)
 		}
 	}
 
@@ -74,7 +74,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	var o options
 
 	o.gitee.AddFlags(fs)
-	fs.StringVar(&o.watchingRepo, "watching_repo", "", "The repo which includes the repository and sig information that will be watched. The format is: org/repo/branch. For example: openeuler/community/master")
+	fs.StringVar(&o.watchingRepo, "watching-repo", "", "The repo which includes the repository and sig information that will be watched. The format is: org/repo/branch. For example: openeuler/community/master")
 	fs.StringVar(&o.repoFilePath, "repo-file-path", "", "Path to repo file. For example: repository/openeuler.yaml")
 	fs.StringVar(&o.sigFilePath, "sig-file-path", "", "Path to sig file. For example: sig/sigs.yaml")
 	fs.StringVar(&o.sigDir, "sig-dir", "", "The directory which includes all the sigs. For example: sig")
@@ -102,7 +102,7 @@ func main() {
 
 	pool, err := newPool(o.concurrentSize, logWapper{})
 	if err != nil {
-
+		logrus.WithError(err).Fatal("Error starting goroutine pool.")
 	}
 	defer pool.Release()
 

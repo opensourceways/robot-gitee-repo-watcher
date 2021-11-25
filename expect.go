@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"path/filepath"
 
 	"sigs.k8s.io/yaml"
@@ -9,82 +10,77 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
-type expectRepos struct {
-	loadFile func(string, interface{}) (string, error)
+type watchingFile struct {
+	loadFile func(string) (string, string, error)
 
-	path  string
-	sha   string
-	repos community.Repos
+	path string
+	sha  string
+	obj  interface{}
 }
 
-func (r *expectRepos) update(sha string) error {
-	if sha == "" || sha == r.sha {
-		return nil
+type getSHAFunc func(string) string
+
+func (w *watchingFile) update(f getSHAFunc, newObject func() interface{}) {
+	if sha := f(w.path); sha == "" || sha == w.sha {
+		return
 	}
 
-	v := new(community.Repos)
-	sha, err := r.loadFile(r.path, v)
-	if err != nil {
-		return err
+	c, sha, err := w.loadFile(w.path)
+	if err != nil { // log
+		return
 	}
 
-	r.repos = *v
-	r.sha = sha
+	v := newObject()
+	if err := decodeYamlFile(c, v); err != nil {
+		// log
+	} else {
+		w.obj = v
+		w.sha = sha
+	}
+}
 
+type expectRepos struct {
+	wf watchingFile
+}
+
+func (r *expectRepos) refresh(f getSHAFunc) *community.Repos {
+	r.wf.update(f, func() interface{} {
+		return new(community.Repos)
+	})
+
+	if v, ok := r.wf.obj.(*community.Repos); ok {
+		return v
+	}
 	return nil
 }
 
 type orgSigs struct {
-	loadFile func(string, interface{}) (string, error)
-
-	path string
-	sha  string
-	sigs community.Sigs
+	wf watchingFile
 }
 
-func (r *orgSigs) update(sha string) error {
-	if sha == r.sha {
-		return nil
+func (r *orgSigs) refresh(f getSHAFunc) *community.Sigs {
+	r.wf.update(f, func() interface{} {
+		return new(community.Sigs)
+	})
+
+	if v, ok := r.wf.obj.(*community.Sigs); ok {
+		return v
 	}
-
-	v := new(community.Sigs)
-	sha, err := r.loadFile(r.path, v)
-	if err != nil {
-		return err
-	}
-
-	r.sigs = *v
-	r.sha = sha
-
 	return nil
 }
 
 type expectSigOwners struct {
-	loadFile func(string, interface{}) (string, error)
-
-	path   string
-	sha    string
-	owners community.RepoOwners
+	wf watchingFile
 }
 
-func (r *expectSigOwners) getOwners() []string {
-	return r.owners.Maintainers
-}
+func (r *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
+	r.wf.update(f, func() interface{} {
+		return new(community.RepoOwners)
+	})
 
-func (r *expectSigOwners) update(sha string) error {
-	if sha == "" || sha == r.sha {
-		return nil
+	if v, ok := r.wf.obj.(*community.RepoOwners); ok {
+		return v
 	}
-
-	v := new(community.RepoOwners)
-	sha, err := r.loadFile(r.path, v)
-	if err != nil {
-		return err
-	}
-
-	r.owners = *v
-	r.sha = sha
-
 	return nil
 }
 
@@ -106,110 +102,63 @@ type expectState struct {
 	sigOwners map[string]*expectSigOwners
 }
 
-func (r *expectState) loadFile(path string, v interface{}) (string, error) {
-	c, err := r.cli.GetPathContent(r.w.org, r.w.repo, path, r.w.branch)
-	if err != nil {
-		return "", err
-	}
-
-	if err = decodeYamlFile(c.Content, v); err != nil {
-		return "", err
-	}
-
-	return c.Sha, nil
-}
-
 func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, error) {
 	s.repos = expectRepos{
-		loadFile: s.loadFile,
-		path:     repoFilePath,
+		wf: watchingFile{
+			loadFile: s.loadFile,
+			path:     repoFilePath,
+		},
 	}
-	if err := s.repos.update("init"); err != nil {
-		return "", err
+
+	v := s.repos.refresh(func(string) string {
+		return "init"
+	})
+
+	org := v.GetCommunity()
+	if org == "" {
+		return "", fmt.Errorf("load repository failed")
 	}
 
 	s.sig = orgSigs{
-		loadFile: s.loadFile,
-		path:     sigFilePath,
-	}
-	if err := s.sig.update("init"); err != nil {
-		return "", err
+		wf: watchingFile{
+			loadFile: s.loadFile,
+			path:     sigFilePath,
+		},
 	}
 
 	s.sigDir = sigDir
 
-	return s.repos.repos.Community, nil
+	return org, nil
 }
 
-func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
-	o, ok := s.sigOwners[sigName]
-	if !ok {
-		o = &expectSigOwners{
-			path:     filepath.Join(s.sigDir, sigName, "OWNERS"),
-			loadFile: s.loadFile,
-		}
-
-		s.sigOwners[sigName] = o
-	}
-
-	return o
-}
-
-func (s *expectState) getAllRepos() []community.Repository {
-	return s.repos.repos.Repositories
-}
-
-func (s *expectState) getAllSigs() []community.Sig {
-	return s.sig.sigs.Sigs
-}
-
-func decodeYamlFile(content string, v interface{}) error {
-	c, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return err
-	}
-
-	return yaml.Unmarshal(c, v)
-}
-
-func (s *expectState) check(isStopped func() bool, callback func([]string, *community.Repository)) {
+func (s *expectState) check(isStopped func() bool, callback func(*community.Repository, []string)) {
 	allFiles, err := s.listAllFilesOfRepo()
 	if err != nil {
 		// log
+		allFiles = make(map[string]string)
 	}
 
-	if err := s.repos.update(allFiles[s.repos.path]); err != nil {
-		// log
+	getSHA := func(p string) string {
+		return allFiles[p]
 	}
 
-	repoMap := make(map[string]*community.Repository)
-	v := s.getAllRepos()
-	for i := range v {
-		item := &v[i]
-		repoMap[item.Name] = item
-	}
+	allRepos := s.repos.refresh(getSHA)
+	repoMap := allRepos.GetRepos()
 
-	if err := s.sig.update(allFiles[s.sig.path]); err != nil {
-		// log
-	}
-
-	sigs := s.getAllSigs()
+	allSigs := s.sig.refresh(getSHA)
+	sigs := allSigs.GetSigs()
 	for i := range sigs {
 		sig := &sigs[i]
 
 		sigOwner := s.getSigOwner(sig.Name)
-
-		if err := sigOwner.update(allFiles[sigOwner.path]); err != nil {
-			//log
-			// it should think about the unormal input data
-		}
+		owners := sigOwner.refresh(getSHA)
 
 		for _, repoName := range sig.Repositories {
 			if isStopped() {
 				break
 			}
 
-			callback(sigOwner.getOwners(), repoMap[repoName])
+			callback(repoMap[repoName], owners.GetOwners())
 
 			delete(repoMap, repoName)
 		}
@@ -224,8 +173,24 @@ func (s *expectState) check(isStopped func() bool, callback func([]string, *comm
 			break
 		}
 
-		callback(nil, repo)
+		callback(repo, nil)
 	}
+}
+
+func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
+	o, ok := s.sigOwners[sigName]
+	if !ok {
+		o = &expectSigOwners{
+			wf: watchingFile{
+				path:     filepath.Join(s.sigDir, sigName, "OWNERS"),
+				loadFile: s.loadFile,
+			},
+		}
+
+		s.sigOwners[sigName] = o
+	}
+
+	return o
 }
 
 func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
@@ -241,4 +206,22 @@ func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
 	}
 
 	return r, nil
+}
+
+func (r *expectState) loadFile(path string) (string, string, error) {
+	c, err := r.cli.GetPathContent(r.w.org, r.w.repo, path, r.w.branch)
+	if err != nil {
+		return "", "", err
+	}
+
+	return c.Content, c.Sha, nil
+}
+
+func decodeYamlFile(content string, v interface{}) error {
+	c, err := base64.StdEncoding.DecodeString(content)
+	if err != nil {
+		return err
+	}
+
+	return yaml.Unmarshal(c, v)
 }

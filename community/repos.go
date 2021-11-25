@@ -8,6 +8,29 @@ type Repos struct {
 	Repositories []Repository `json:"repositories,omitempty"`
 }
 
+func (r *Repos) GetCommunity() string {
+	if r == nil {
+		return ""
+	}
+	return r.Community
+}
+
+func (r *Repos) GetRepos() map[string]*Repository {
+	v := make(map[string]*Repository)
+
+	if r == nil {
+		return v
+	}
+
+	items := r.Repositories
+	for i := range items {
+		item := &items[i]
+		v[item.Name] = item
+	}
+
+	return v
+}
+
 // TODO: validate
 type Repository struct {
 	Name              string       `json:"name" required:"true"`
@@ -39,7 +62,14 @@ type RepoBranch struct {
 }
 
 type Sigs struct {
-	Sigs []Sig `json:"sigs,omitempty"`
+	Items []Sig `json:"sigs,omitempty"`
+}
+
+func (s *Sigs) GetSigs() []Sig {
+	if s == nil {
+		return nil
+	}
+	return s.Items
 }
 
 type Sig struct {
@@ -49,4 +79,11 @@ type Sig struct {
 
 type RepoOwners struct {
 	Maintainers []string `json:"maintainers,omitempty"`
+}
+
+func (r *RepoOwners) GetOwners() []string {
+	if r == nil {
+		return nil
+	}
+	return r.Maintainers
 }

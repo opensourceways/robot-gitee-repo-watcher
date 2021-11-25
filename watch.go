@@ -36,7 +36,7 @@ func (bot *robot) run(ctx context.Context, opt *options) error {
 }
 
 func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
-	f := func(owners []string, repo *community.Repository) {
+	f := func(repo *community.Repository, owners []string) {
 		bot.execTask(
 			local.getOrNewRepo(repo.Name),
 			&expectRepoInfo{
@@ -58,6 +58,8 @@ func (bot *robot) watch(ctx context.Context, org string, local *localState, expe
 
 		expect.check(isStopped, f)
 	}
+
+	bot.wg.Wait()
 }
 
 func (bot *robot) execTask(localRepo *models.Repo, expectRepo *expectRepoInfo) {
@@ -74,10 +76,13 @@ func (bot *robot) execTask(localRepo *models.Repo, expectRepo *expectRepoInfo) {
 		}
 	}
 
+	bot.wg.Add(1)
 	err := bot.pool.Submit(func() {
+		defer bot.wg.Done()
 		localRepo.Update(f)
 	})
 	if err != nil {
+		bot.wg.Done()
 		//log
 	}
 }

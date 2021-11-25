@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/panjf2000/ants/v2"
+	"sync"
 
 	sdk "gitee.com/openeuler/go-gitee/gitee"
 )
@@ -25,10 +26,11 @@ type iClient interface {
 }
 
 func newRobot(cli iClient, pool *ants.Pool) *robot {
-	return &robot{cli, pool}
+	return &robot{cli: cli, pool: pool}
 }
 
 type robot struct {
-	cli  iClient
 	pool *ants.Pool
+	cli  iClient
+	wg   sync.WaitGroup
 }
