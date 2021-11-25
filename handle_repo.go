@@ -4,18 +4,19 @@ import (
 	"strconv"
 
 	sdk "gitee.com/openeuler/go-gitee/gitee"
+	"github.com/sirupsen/logrus"
 
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
 )
 
-func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
+func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) models.RepoState {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
 	repoName := repo.Name
 
 	if repo.RenameFrom != "" && repo.RenameFrom != repoName {
-		return bot.renameRepo(org, repo)
+		return bot.renameRepo(org, repo, log)
 	}
 
 	err := bot.cli.CreateRepo(org, sdk.RepositoryPostParam{
@@ -28,11 +29,14 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
 		Private:     repo.IsPrivate(),
 	})
 	if err != nil {
-		// log
+		log.WithError(err).Errorf("create repo:%s", repoName)
+
 		return models.RepoState{}
 	}
 
-	bot.initRepoReviewer(org, repoName)
+	if err := bot.initRepoReviewer(org, repoName); err != nil {
+		log.WithError(err).Errorf("initialize the reviewers for new created repo:%s", repoName)
+	}
 
 	branches := []community.RepoBranch{}
 	for _, item := range repo.Branches {
@@ -44,7 +48,7 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
 			item.CreateFrom = "master"
 		}
 
-		if b, ok := bot.createBranch(org, repoName, item); ok {
+		if b, ok := bot.createBranch(org, repoName, item, log); ok {
 			branches = append(branches, b)
 		}
 	}
@@ -52,7 +56,9 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
 	members := []string{}
 	for _, item := range expectRepo.expectOwners {
 		if err := bot.addRepoMember(org, repoName, item); err != nil {
-			// log
+			logrus.WithError(err).Errorf(
+				"add member:%s to repo:%s when creating it", item, repoName,
+			)
 		} else {
 			members = append(members, item)
 		}
@@ -69,7 +75,7 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
 	}
 }
 
-func (bot *robot) renameRepo(org string, repo *community.Repository) models.RepoState {
+func (bot *robot) renameRepo(org string, repo *community.Repository, log *logrus.Entry) models.RepoState {
 	repoName := repo.Name
 
 	err := bot.cli.UpdateRepo(
@@ -82,7 +88,8 @@ func (bot *robot) renameRepo(org string, repo *community.Repository) models.Repo
 	)
 
 	if err != nil {
-		// log
+		log.WithError(err).Errorf("rename repo:%s to %s", repo.RenameFrom, repoName)
+
 		return models.RepoState{}
 	}
 
@@ -90,14 +97,20 @@ func (bot *robot) renameRepo(org string, repo *community.Repository) models.Repo
 
 	branches, err := bot.listAllBranchOfRepo(org, repoName)
 	if err != nil {
-
+		log.WithError(err).Errorf(
+			"list branch of repo:%s which is renamed from:%s",
+			repoName, repo.RenameFrom,
+		)
 	} else {
 		r.Branches = branches
 	}
 
 	newRepo, err := bot.cli.GetGiteeRepo(org, repoName)
 	if err != nil {
-
+		log.WithError(err).Errorf(
+			"get repo:%s which is renamed from:%s",
+			repoName, repo.RenameFrom,
+		)
 	} else {
 		r.Members = newRepo.Members
 		r.Property = models.RepoProperty{
@@ -109,8 +122,8 @@ func (bot *robot) renameRepo(org string, repo *community.Repository) models.Repo
 	return r
 }
 
-func (bot *robot) initRepoReviewer(org, repo string) {
-	err := bot.cli.SetRepoReviewer(
+func (bot *robot) initRepoReviewer(org, repo string) error {
+	return bot.cli.SetRepoReviewer(
 		org,
 		repo,
 		sdk.SetRepoReviewer{
@@ -120,23 +133,21 @@ func (bot *robot) initRepoReviewer(org, repo string) {
 			TestersNumber:   0,
 		},
 	)
-	if err != nil {
-		// log
-	}
 }
 
-func (bot *robot) updateRepo(expectRepo expectRepoInfo, lp models.RepoProperty) models.RepoProperty {
+func (bot *robot) updateRepo(expectRepo expectRepoInfo, lp models.RepoProperty, log *logrus.Entry) models.RepoProperty {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
+	repoName := repo.Name
 
 	ep := repo.IsPrivate()
 	ec := repo.Commentable
 	if ep != lp.Private || ec != lp.CanComment {
 		err := bot.cli.UpdateRepo(
 			org,
-			repo.Name,
+			repoName,
 			sdk.RepoPatchParam{
-				Name:       repo.Name,
+				Name:       repoName,
 				CanComment: strconv.FormatBool(ec),
 				Private:    strconv.FormatBool(ep),
 			},
@@ -147,7 +158,11 @@ func (bot *robot) updateRepo(expectRepo expectRepoInfo, lp models.RepoProperty) 
 				CanComment: ec,
 			}
 		}
-		// log
+
+		log.WithError(err).WithFields(logrus.Fields{
+			"Private":    ep,
+			"CanComment": ec,
+		}).Errorf("update repo:%s", repoName)
 	}
 	return lp
 }

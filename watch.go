@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
 )
@@ -15,10 +17,12 @@ type expectRepoInfo struct {
 }
 
 func (bot *robot) run(ctx context.Context, opt *options) error {
-	w, _ := opt.parseWatchingRepo()
+	log := logrus.NewEntry(logrus.New())
 
+	w, _ := opt.parseWatchingRepo()
 	expect := &expectState{
 		w:   w,
+		log: log,
 		cli: bot.cli,
 	}
 
@@ -68,19 +72,23 @@ func (bot *robot) watch(ctx context.Context, org string, local *localState, expe
 }
 
 func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, expect *expectState) {
-	f := func(repo *community.Repository, owners []string) {
+	f := func(repo *community.Repository, owners []string, log *logrus.Entry) {
 		if repo == nil {
 			return
 		}
 
-		bot.execTask(
+		err := bot.execTask(
 			local.getOrNewRepo(repo.Name),
 			expectRepoInfo{
 				org:             org,
 				expectOwners:    owners,
 				expectRepoState: repo,
 			},
+			log,
 		)
+		if err != nil {
+			log.WithError(err).Errorf("submit task of repo:%s", repo.Name)
+		}
 	}
 
 	isStopped := func() bool {
@@ -90,29 +98,30 @@ func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, 
 	expect.check(isStopped, f)
 }
 
-func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo) {
+func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo, log *logrus.Entry) error {
 	f := func(before models.RepoState) models.RepoState {
 		if !before.Available {
-			return bot.createRepo(expectRepo)
+			return bot.createRepo(expectRepo, log)
 		}
 
 		return models.RepoState{
 			Available: true,
-			Branches:  bot.handleBranch(expectRepo, before.Branches),
-			Members:   bot.handleMember(expectRepo, before.Members),
-			Property:  bot.updateRepo(expectRepo, before.Property),
+			Branches:  bot.handleBranch(expectRepo, before.Branches, log),
+			Members:   bot.handleMember(expectRepo, before.Members, log),
+			Property:  bot.updateRepo(expectRepo, before.Property, log),
 		}
 	}
 
 	bot.wg.Add(1)
 	err := bot.pool.Submit(func() {
 		defer bot.wg.Done()
+
 		localRepo.Update(f)
 	})
 	if err != nil {
 		bot.wg.Done()
-		//log
 	}
+	return err
 }
 
 func isCancelled(ctx context.Context) bool {

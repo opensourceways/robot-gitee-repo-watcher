@@ -1,18 +1,20 @@
 package main
 
 import (
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
-func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []community.RepoBranch) []community.RepoBranch {
+func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []community.RepoBranch, log *logrus.Entry) []community.RepoBranch {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState.Name
 
 	if len(localBranches) == 0 {
 		v, err := bot.listAllBranchOfRepo(org, repo)
 		if err != nil {
+			log.WithError(err).Errorf("list all branch of repo:%s", repo)
 			return nil
 		}
 		localBranches = v
@@ -34,6 +36,10 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 				if err == nil {
 					newState = append(newState, *eb)
 					continue
+				} else {
+					logrus.WithError(err).WithField("type", eb.Type).Errorf(
+						"update branch:%s of repo:%s", name, repo,
+					)
 				}
 			}
 			newState = append(newState, *lb)
@@ -44,7 +50,7 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 	if v := bsExpect.differenceByName(&bsLocal); len(v) > 0 {
 		for _, item := range v {
 			// 1. create branch but it exits;
-			if b, ok := bot.createBranch(org, repo, item); ok {
+			if b, ok := bot.createBranch(org, repo, item, log); ok {
 				newState = append(newState, b)
 			}
 		}
@@ -53,16 +59,22 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 	return newState
 }
 
-func (bot *robot) createBranch(org, repo string, branch community.RepoBranch) (community.RepoBranch, bool) {
+func (bot *robot) createBranch(org, repo string, branch community.RepoBranch, log *logrus.Entry) (community.RepoBranch, bool) {
 	err := bot.cli.CreateBranch(org, repo, branch.Name, branch.CreateFrom)
 	if err != nil {
-		// log
+		log.WithError(err).WithField("CreateFrom", branch.CreateFrom).Errorf(
+			"create branch:%s of repo:%s", branch.Name, repo,
+		)
 		return community.RepoBranch{}, false
 	}
 
 	if branch.Type == community.BranchProtected {
 		if err := bot.cli.SetProtectionBranch(org, repo, branch.Name); err != nil {
-			//log
+			log.WithError(err).Errorf(
+				"set the branch:%s of repo:%s to be protected when creating it",
+				branch.Name, repo,
+			)
+
 			return community.RepoBranch{
 				Name:       branch.Name,
 				CreateFrom: branch.CreateFrom,

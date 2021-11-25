@@ -118,7 +118,9 @@ func main() {
 		cancel()
 	})
 
-	p.run(ctx, &o)
+	if err = p.run(ctx, &o); err != nil {
+		logrus.WithError(err).Error("start watching")
+	}
 }
 
 func newPool(size int, log ants.Logger) (*ants.Pool, error) {

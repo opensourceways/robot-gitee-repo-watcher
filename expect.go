@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
 type watchingFile struct {
+	log      *logrus.Entry
 	loadFile func(string) (string, string, error)
 
 	path string
@@ -26,13 +28,14 @@ func (w *watchingFile) update(f getSHAFunc, newObject func() interface{}) {
 	}
 
 	c, sha, err := w.loadFile(w.path)
-	if err != nil { // log
+	if err != nil {
+		w.log.WithError(err).Errorf("load file:%s", w.path)
 		return
 	}
 
 	v := newObject()
 	if err := decodeYamlFile(c, v); err != nil {
-		// log
+		w.log.WithError(err).Errorf("decode file:%s", w.path)
 	} else {
 		w.obj = v
 		w.sha = sha
@@ -91,9 +94,10 @@ type watchingRepoInfo struct {
 }
 
 type expectState struct {
-	w   watchingRepoInfo
+	log *logrus.Entry
 	cli iClient
 
+	w         watchingRepoInfo
 	sig       orgSigs
 	repos     expectRepos
 	sigDir    string
@@ -101,12 +105,7 @@ type expectState struct {
 }
 
 func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, error) {
-	s.repos = expectRepos{
-		wf: watchingFile{
-			loadFile: s.loadFile,
-			path:     repoFilePath,
-		},
-	}
+	s.repos = expectRepos{s.newWatchingFile(repoFilePath)}
 
 	v := s.repos.refresh(func(string) string {
 		return "init"
@@ -117,22 +116,18 @@ func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, er
 		return "", fmt.Errorf("load repository failed")
 	}
 
-	s.sig = orgSigs{
-		wf: watchingFile{
-			loadFile: s.loadFile,
-			path:     sigFilePath,
-		},
-	}
+	s.sig = orgSigs{s.newWatchingFile(sigFilePath)}
 
 	s.sigDir = sigDir
 
 	return org, nil
 }
 
-func (s *expectState) check(isStopped func() bool, callback func(*community.Repository, []string)) {
+func (s *expectState) check(isStopped func() bool, callback func(*community.Repository, []string, *logrus.Entry)) {
 	allFiles, err := s.listAllFilesOfRepo()
 	if err != nil {
-		// log
+		s.log.WithError(err).Error("list all file")
+
 		allFiles = make(map[string]string)
 	}
 
@@ -156,7 +151,7 @@ func (s *expectState) check(isStopped func() bool, callback func(*community.Repo
 				break
 			}
 
-			callback(repoMap[repoName], owners.GetOwners())
+			callback(repoMap[repoName], owners.GetOwners(), s.log)
 
 			delete(repoMap, repoName)
 		}
@@ -171,7 +166,7 @@ func (s *expectState) check(isStopped func() bool, callback func(*community.Repo
 			break
 		}
 
-		callback(repo, nil)
+		callback(repo, nil, s.log)
 	}
 }
 
@@ -179,16 +174,23 @@ func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
 	o, ok := s.sigOwners[sigName]
 	if !ok {
 		o = &expectSigOwners{
-			wf: watchingFile{
-				path:     filepath.Join(s.sigDir, sigName, "OWNERS"),
-				loadFile: s.loadFile,
-			},
+			wf: s.newWatchingFile(
+				filepath.Join(s.sigDir, sigName, "OWNERS"),
+			),
 		}
 
 		s.sigOwners[sigName] = o
 	}
 
 	return o
+}
+
+func (s *expectState) newWatchingFile(p string) watchingFile {
+	return watchingFile{
+		path:     p,
+		log:      s.log,
+		loadFile: s.loadFile,
+	}
 }
 
 func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
