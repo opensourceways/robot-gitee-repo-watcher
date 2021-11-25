@@ -49,7 +49,6 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 	// add new
 	if v := bsExpect.differenceByName(&bsLocal); len(v) > 0 {
 		for _, item := range v {
-			// 1. create branch but it exits;
 			if b, ok := bot.createBranch(org, repo, item, log); ok {
 				newState = append(newState, b)
 			}
@@ -60,12 +59,20 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 }
 
 func (bot *robot) createBranch(org, repo string, branch community.RepoBranch, log *logrus.Entry) (community.RepoBranch, bool) {
-	err := bot.cli.CreateBranch(org, repo, branch.Name, branch.CreateFrom)
+	ref := branch.CreateFrom
+	if ref == "" {
+		// ref must be passed according to the gitee api and the default value is "master"
+		ref = "master"
+	}
+
+	err := bot.cli.CreateBranch(org, repo, branch.Name, ref)
 	if err != nil {
-		log.WithError(err).WithField("CreateFrom", branch.CreateFrom).Errorf(
-			"create branch:%s of repo:%s", branch.Name, repo,
-		)
-		return community.RepoBranch{}, false
+		if _, err1 := bot.cli.GetRef(org, repo, branch.Name); err1 != nil {
+			log.WithError(err).WithField("CreateFrom", ref).Errorf(
+				"create branch:%s of repo:%s", branch.Name, repo,
+			)
+			return community.RepoBranch{}, false
+		}
 	}
 
 	if branch.Type == community.BranchProtected {
@@ -77,7 +84,7 @@ func (bot *robot) createBranch(org, repo string, branch community.RepoBranch, lo
 
 			return community.RepoBranch{
 				Name:       branch.Name,
-				CreateFrom: branch.CreateFrom,
+				CreateFrom: ref,
 			}, true
 		}
 	}

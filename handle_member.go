@@ -10,7 +10,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	repo := expectRepo.expectRepoState.Name
 
 	if len(localMembers) == 0 {
-		v, err := bot.cli.GetGiteeRepo(org, repo)
+		v, err := bot.cli.GetRepo(org, repo)
 		if err != nil {
 			log.WithError(err).Errorf("get repo:%s when handling repo members", repo)
 			return nil
@@ -26,7 +26,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	// add new
 	if v := expect.Difference(lm); v.Len() > 0 {
 		for k := range v {
-			// 2. add memeber but it exits
+			// how about adding a memeber but he/she exits?
 			if err := bot.addRepoMember(org, repo, k); err != nil {
 				log.WithError(err).Errorf("add member:%s to repo:%s", k, repo)
 			} else {
@@ -49,6 +49,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	return newMembers
 }
 
+// Gitee api will be successful even if adding a member repeatedly.
 func (bot *robot) addRepoMember(org, repo, login string) error {
 	return bot.cli.AddRepoMember(org, repo, login, "push")
 }

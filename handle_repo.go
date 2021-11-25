@@ -29,6 +29,11 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) model
 		Private:     repo.IsPrivate(),
 	})
 	if err != nil {
+		l := log.WithField("action", "create repo")
+		if s, b := bot.getRepoState(org, repoName, l); b {
+			return s
+		}
+
 		log.WithError(err).Errorf("create repo:%s", repoName)
 
 		return models.RepoState{}
@@ -42,10 +47,6 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) model
 	for _, item := range repo.Branches {
 		if item.Name == "master" {
 			continue
-		}
-
-		if item.CreateFrom == "" {
-			item.CreateFrom = "master"
 		}
 
 		if b, ok := bot.createBranch(org, repoName, item, log); ok {
@@ -87,39 +88,45 @@ func (bot *robot) renameRepo(org string, repo *community.Repository, log *logrus
 		},
 	)
 
+	// if the err == nil, invoke 'getRepoState' obviously.
+	// if the err != nil, it is better to call 'getRepoState' to avoid the case that the repo already exists.
+	l := log.WithField("action", "rename from repo:"+repo.RenameFrom)
+	if s, b := bot.getRepoState(org, repoName, l); b {
+		return s
+	}
+
 	if err != nil {
 		log.WithError(err).Errorf("rename repo:%s to %s", repo.RenameFrom, repoName)
 
 		return models.RepoState{}
 	}
 
-	r := models.RepoState{Available: true}
+	return models.RepoState{Available: true}
+}
 
-	branches, err := bot.listAllBranchOfRepo(org, repoName)
+func (bot *robot) getRepoState(org, repo string, log *logrus.Entry) (models.RepoState, bool) {
+	newRepo, err := bot.cli.GetRepo(org, repo)
 	if err != nil {
-		log.WithError(err).Errorf(
-			"list branch of repo:%s which is renamed from:%s",
-			repoName, repo.RenameFrom,
-		)
+		log.WithError(err).Errorf("get repo:%s", repo)
+		return models.RepoState{}, false
+	}
+
+	r := models.RepoState{
+		Available: true,
+		Members:   newRepo.Members,
+		Property: models.RepoProperty{
+			Private:    newRepo.Private,
+			CanComment: newRepo.CanComment,
+		},
+	}
+
+	branches, err := bot.listAllBranchOfRepo(org, repo)
+	if err != nil {
+		log.WithError(err).Errorf("list branch of repo:%s", repo)
 	} else {
 		r.Branches = branches
 	}
-
-	newRepo, err := bot.cli.GetGiteeRepo(org, repoName)
-	if err != nil {
-		log.WithError(err).Errorf(
-			"get repo:%s which is renamed from:%s",
-			repoName, repo.RenameFrom,
-		)
-	} else {
-		r.Members = newRepo.Members
-		r.Property = models.RepoProperty{
-			Private:    newRepo.Private,
-			CanComment: newRepo.CanComment,
-		}
-	}
-
-	return r
+	return r, true
 }
 
 func (bot *robot) initRepoReviewer(org, repo string) error {
