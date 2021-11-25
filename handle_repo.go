@@ -9,7 +9,7 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
 )
 
-func (bot *robot) createRepo(expectRepo *expectRepoInfo) models.RepoState {
+func (bot *robot) createRepo(expectRepo expectRepoInfo) models.RepoState {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
 	repoName := repo.Name
@@ -32,24 +32,16 @@ func (bot *robot) createRepo(expectRepo *expectRepoInfo) models.RepoState {
 		return models.RepoState{}
 	}
 
-	err = bot.cli.SetRepoReviewer(
-		org,
-		repoName,
-		sdk.SetRepoReviewer{
-			Assignees:       " ", //TODO need set to " "?
-			Testers:         " ",
-			AssigneesNumber: 0,
-			TestersNumber:   0,
-		},
-	)
-	if err != nil {
-		// log
-	}
+	bot.initRepoReviewer(org, repoName)
 
 	branches := []community.RepoBranch{}
 	for _, item := range repo.Branches {
 		if item.Name == "master" {
 			continue
+		}
+
+		if item.CreateFrom == "" {
+			item.CreateFrom = "master"
 		}
 
 		if b, ok := bot.createBranch(org, repoName, item); ok {
@@ -117,7 +109,23 @@ func (bot *robot) renameRepo(org string, repo *community.Repository) models.Repo
 	return r
 }
 
-func (bot *robot) updateRepo(expectRepo *expectRepoInfo, lp models.RepoProperty) models.RepoProperty {
+func (bot *robot) initRepoReviewer(org, repo string) {
+	err := bot.cli.SetRepoReviewer(
+		org,
+		repo,
+		sdk.SetRepoReviewer{
+			Assignees:       " ", //TODO need set to " "?
+			Testers:         " ",
+			AssigneesNumber: 0,
+			TestersNumber:   0,
+		},
+	)
+	if err != nil {
+		// log
+	}
+}
+
+func (bot *robot) updateRepo(expectRepo expectRepoInfo, lp models.RepoProperty) models.RepoProperty {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
 

@@ -4,7 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func (bot *robot) handleMember(expectRepo *expectRepoInfo, localMembers []string) []string {
+func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string) []string {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState.Name
 
@@ -30,7 +30,6 @@ func (bot *robot) handleMember(expectRepo *expectRepoInfo, localMembers []string
 			} else {
 				newMembers = append(newMembers, k)
 			}
-
 		}
 	}
 
@@ -41,7 +40,6 @@ func (bot *robot) handleMember(expectRepo *expectRepoInfo, localMembers []string
 				// log
 				newMembers = append(newMembers, k)
 			}
-
 		}
 	}
 

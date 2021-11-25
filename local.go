@@ -15,6 +15,7 @@ func (r *localState) getOrNewRepo(repo string) *models.Repo {
 
 	v := models.NewRepo(repo, models.RepoState{})
 	r.repos[repo] = v
+
 	return v
 }
 

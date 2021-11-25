@@ -6,7 +6,7 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
-func (bot *robot) handleBranch(expectRepo *expectRepoInfo, localBranches []community.RepoBranch) []community.RepoBranch {
+func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []community.RepoBranch) []community.RepoBranch {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState.Name
 
@@ -111,11 +111,12 @@ func (bs *branchSets) intersectionByName(bs1 *branchSets) sets.String {
 
 func (bs *branchSets) differenceByName(bs1 *branchSets) []community.RepoBranch {
 	v := bs.s.Difference(bs1.s)
-	if v.Len() == 0 {
+	n := v.Len()
+	if n == 0 {
 		return nil
 	}
 
-	r := make([]community.RepoBranch, len(v))
+	r := make([]community.RepoBranch, n)
 	i := 0
 	for k := range v {
 		r[i] = *bs.get(k)

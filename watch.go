@@ -37,9 +37,13 @@ func (bot *robot) run(ctx context.Context, opt *options) error {
 
 func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
 	f := func(repo *community.Repository, owners []string) {
+		if repo == nil {
+			return
+		}
+
 		bot.execTask(
 			local.getOrNewRepo(repo.Name),
-			&expectRepoInfo{
+			expectRepoInfo{
 				org:             org,
 				expectOwners:    owners,
 				expectRepoState: repo,
@@ -62,7 +66,7 @@ func (bot *robot) watch(ctx context.Context, org string, local *localState, expe
 	bot.wg.Wait()
 }
 
-func (bot *robot) execTask(localRepo *models.Repo, expectRepo *expectRepoInfo) {
+func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo) {
 	f := func(before models.RepoState) models.RepoState {
 		if !before.Available {
 			return bot.createRepo(expectRepo)

@@ -39,7 +39,7 @@ type Repository struct {
 	Description       string       `json:"description,omitempty"`
 	Commentable       bool         `json:"commentable,omitempty"`
 	ProtectedBranches []string     `json:"protected_branches,omitempty"`
-	Branches          []RepoBranch `json:"branches"`
+	Branches          []RepoBranch `json:"branches,omitempty"`
 
 	RepoMember
 }
@@ -56,7 +56,7 @@ type RepoMember struct {
 }
 
 type RepoBranch struct {
-	Name       string `json:"name,omitempty"`
+	Name       string `json:"name" required:"true"`
 	Type       string `json:"type,omitempty"`
 	CreateFrom string `json:"create_from,omitempty"`
 }

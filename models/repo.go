@@ -1,31 +1,12 @@
 package models
 
-import (
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/opensourceways/robot-gitee-repo-watcher/community"
-)
+import "github.com/opensourceways/robot-gitee-repo-watcher/community"
 
 var empty = struct{}{}
 
-type Repo1 struct {
-	name      string
-	available bool
-	property  RepoProperty
-
-	start chan struct{}
-
-	branches []community.RepoBranch
-	members  sets.String
-
-	state RepoState
-}
-
-type AfterUpdate struct {
-	NewCreated bool
-	Branches   []community.RepoBranch
-	Members    []string
-	Property   RepoProperty
+type RepoProperty struct {
+	Private    bool
+	CanComment bool
 }
 
 type RepoState struct {
@@ -33,11 +14,6 @@ type RepoState struct {
 	Branches  []community.RepoBranch
 	Members   []string
 	Property  RepoProperty
-}
-
-type RepoProperty struct {
-	Private    bool
-	CanComment bool
 }
 
 type Repo struct {

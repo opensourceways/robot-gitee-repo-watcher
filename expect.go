@@ -94,10 +94,8 @@ type expectState struct {
 	w   watchingRepoInfo
 	cli iClient
 
-	repos expectRepos
-
-	sig orgSigs
-
+	sig       orgSigs
+	repos     expectRepos
 	sigDir    string
 	sigOwners map[string]*expectSigOwners
 }
