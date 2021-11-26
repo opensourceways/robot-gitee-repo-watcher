@@ -11,18 +11,22 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
+type watchingFileObject interface {
+	Validate() error
+}
+
 type watchingFile struct {
 	log      *logrus.Entry
 	loadFile func(string) (string, string, error)
 
 	file string
 	sha  string
-	obj  interface{}
+	obj  watchingFileObject
 }
 
 type getSHAFunc func(string) string
 
-func (w *watchingFile) update(f getSHAFunc, newObject func() interface{}) {
+func (w *watchingFile) update(f getSHAFunc, newObject func() watchingFileObject) {
 	if sha := f(w.file); sha == "" || sha == w.sha {
 		return
 	}
@@ -34,8 +38,14 @@ func (w *watchingFile) update(f getSHAFunc, newObject func() interface{}) {
 	}
 
 	v := newObject()
+
 	if err := decodeYamlFile(c, v); err != nil {
 		w.log.WithError(err).Errorf("decode file:%s", w.file)
+		return
+	}
+
+	if err := v.Validate(); err != nil {
+		w.log.WithError(err).Errorf("validate the data of file:%s", w.file)
 	} else {
 		w.obj = v
 		w.sha = sha
@@ -47,7 +57,7 @@ type expectRepos struct {
 }
 
 func (e *expectRepos) refresh(f getSHAFunc) *community.Repos {
-	e.wf.update(f, func() interface{} {
+	e.wf.update(f, func() watchingFileObject {
 		return new(community.Repos)
 	})
 
@@ -62,7 +72,7 @@ type orgSigs struct {
 }
 
 func (s *orgSigs) refresh(f getSHAFunc) *community.Sigs {
-	s.wf.update(f, func() interface{} {
+	s.wf.update(f, func() watchingFileObject {
 		return new(community.Sigs)
 	})
 
@@ -77,7 +87,7 @@ type expectSigOwners struct {
 }
 
 func (e *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
-	e.wf.update(f, func() interface{} {
+	e.wf.update(f, func() watchingFileObject {
 		return new(community.RepoOwners)
 	})
 

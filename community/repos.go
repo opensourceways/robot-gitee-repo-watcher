@@ -1,5 +1,7 @@
 package community
 
+import "fmt"
+
 const BranchProtected = "protected"
 
 type Repos struct {
@@ -31,7 +33,15 @@ func (r *Repos) GetRepos() map[string]*Repository {
 	return v
 }
 
-// TODO: validate
+func (r *Repos) Validate() error {
+	for i := range r.Repositories {
+		if err := r.Repositories[i].validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type Repository struct {
 	Name              string       `json:"name" required:"true"`
 	Type              string       `json:"type" required:"true"`
@@ -48,6 +58,24 @@ func (r *Repository) IsPrivate() bool {
 	return r.Type == "private"
 }
 
+func (r *Repository) validate() error {
+	if r.Name == "" {
+		return fmt.Errorf("missing name")
+	}
+
+	if r.Type == "" {
+		return fmt.Errorf("missing type")
+	}
+
+	for i := range r.Branches {
+		if err := r.Branches[i].validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type RepoMember struct {
 	Viewers    []string `json:"viewers,omitempty"`
 	Managers   []string `json:"managers,omitempty"`
@@ -61,6 +89,13 @@ type RepoBranch struct {
 	CreateFrom string `json:"create_from,omitempty"`
 }
 
+func (r *RepoBranch) validate() error {
+	if r.Name == "" {
+		return fmt.Errorf("missing name")
+	}
+	return nil
+}
+
 type Sigs struct {
 	Items []Sig `json:"sigs,omitempty"`
 }
@@ -72,9 +107,26 @@ func (s *Sigs) GetSigs() []Sig {
 	return s.Items
 }
 
+func (s *Sigs) Validate() error {
+	for i := range s.Items {
+		if err := s.Items[i].validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type Sig struct {
 	Name         string   `json:"name" required:"true"`
 	Repositories []string `json:"repositories,omitempty"`
+}
+
+func (s *Sig) validate() error {
+	if s.Name == "" {
+		return fmt.Errorf("missing name")
+	}
+	return nil
 }
 
 type RepoOwners struct {
@@ -86,4 +138,8 @@ func (r *RepoOwners) GetOwners() []string {
 		return nil
 	}
 	return r.Maintainers
+}
+
+func (r *RepoOwners) Validate() error {
+	return nil
 }
