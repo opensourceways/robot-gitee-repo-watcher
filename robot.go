@@ -18,6 +18,7 @@ type iClient interface {
 	SetRepoReviewer(org, repo string, reviewer sdk.SetRepoReviewer) error
 
 	GetPathContent(org, repo, path, ref string) (sdk.Content, error)
+	CreateFile(org, repo, branch, path, content, commitMsg string) (sdk.CommitContent, error)
 	GetDirectoryTree(org, repo, sha string, recursive int32) (sdk.Tree, error)
 
 	RemoveRepoMember(org, repo, login string) error
@@ -29,12 +30,13 @@ type iClient interface {
 	CancelProtectionBranch(org, repo, branch string) error
 }
 
-func newRobot(cli iClient, pool *ants.Pool) *robot {
-	return &robot{cli: cli, pool: pool}
+func newRobot(cli iClient, pool *ants.Pool, cfg *botConfig) *robot {
+	return &robot{cli: cli, pool: pool, cfg: cfg}
 }
 
 type robot struct {
 	pool *ants.Pool
+	cfg  *botConfig
 	cli  iClient
 	wg   sync.WaitGroup
 }

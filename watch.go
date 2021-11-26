@@ -16,10 +16,10 @@ type expectRepoInfo struct {
 	org             string
 }
 
-func (bot *robot) run(ctx context.Context, cfg *botConfig) error {
+func (bot *robot) run(ctx context.Context) error {
 	log := logrus.NewEntry(logrus.New())
 
-	w := &cfg.WatchingFiles
+	w := &bot.cfg.WatchingFiles
 	expect := &expectState{
 		w:         w.repoBranch,
 		log:       log,
@@ -37,11 +37,13 @@ func (bot *robot) run(ctx context.Context, cfg *botConfig) error {
 		return err
 	}
 
-	bot.watch(ctx, org, local, expect, cfg.Interval)
+	bot.watch(ctx, org, local, expect)
 	return nil
 }
 
-func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState, interval int) {
+func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
+	interval := bot.cfg.Interval
+
 	if interval <= 0 {
 		for {
 			if isCancelled(ctx) {
@@ -102,7 +104,7 @@ func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, 
 func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo, log *logrus.Entry) error {
 	f := func(before models.RepoState) models.RepoState {
 		if !before.Available {
-			return bot.createRepo(expectRepo, log)
+			return bot.createRepo(expectRepo, log, bot.createOBSMetaProject)
 		}
 
 		return models.RepoState{

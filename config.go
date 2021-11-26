@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"path"
+	"text/template"
 )
 
 type configuration struct {
@@ -57,6 +60,7 @@ type obsMetaProject struct {
 
 	// ProjectTemplatePath is the template file path which describes the new project
 	ProjectTemplatePath string `json:"project_template_path" required:"true"`
+	projectTemplate     template.Template
 }
 
 func (o *obsMetaProject) genProjectFilePath(p string) string {
@@ -64,7 +68,27 @@ func (o *obsMetaProject) genProjectFilePath(p string) string {
 }
 
 func (o *obsMetaProject) validate() error {
+	t, err := newTemplate("", o.ProjectTemplatePath)
+	if err != nil {
+		return err
+	}
+	o.projectTemplate = *t
+
 	return nil
+}
+
+func (o *obsMetaProject) genProjectFileContent(p string) (string, error) {
+	data := struct {
+		Project string
+	}{p}
+
+	buf := new(bytes.Buffer)
+
+	if err := o.projectTemplate.Execute(buf, data); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 type botConfig struct {
@@ -96,4 +120,24 @@ func (c *botConfig) validate() error {
 		return c.ObsMetaProject.validate()
 	}
 	return nil
+}
+
+func newTemplate(name, path string) (*template.Template, error) {
+	txtStr, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to new template: read template file failed: %s",
+			err.Error(),
+		)
+	}
+
+	tmpl, err := template.New(name).Parse(string(txtStr))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to new template: build template failed: %s",
+			err.Error(),
+		)
+	}
+
+	return tmpl, nil
 }

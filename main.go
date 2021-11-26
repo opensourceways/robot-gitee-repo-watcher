@@ -62,9 +62,9 @@ func main() {
 	}
 	defer pool.Release()
 
-	p := newRobot(c, pool)
+	p := newRobot(c, pool, &cfg)
 
-	run(p, &cfg)
+	run(p)
 }
 
 func newPool(size int, log ants.Logger) (*ants.Pool, error) {
@@ -111,7 +111,7 @@ func genClient(tokenPath string) (iClient, error) {
 	return giteeclient.NewClient(t), nil
 }
 
-func run(bot *robot, cfg *botConfig) {
+func run(bot *robot) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
@@ -135,7 +135,7 @@ func run(bot *robot, cfg *botConfig) {
 		}
 	}(ctx)
 
-	if err := bot.run(ctx, cfg); err != nil {
+	if err := bot.run(ctx); err != nil {
 		logrus.WithError(err).Error("start watching")
 		done()
 	}

@@ -24,6 +24,7 @@ go_library(
         "expect.go",
         "handle_branch.go",
         "handle_member.go",
+        "handle_obsmeta_project.go",
         "handle_repo.go",
         "local.go",
         "main.go",

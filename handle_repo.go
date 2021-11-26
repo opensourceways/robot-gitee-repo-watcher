@@ -10,13 +10,17 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/models"
 )
 
-func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) models.RepoState {
+func (bot *robot) createRepo(
+	expectRepo expectRepoInfo,
+	log *logrus.Entry,
+	hook func(string, *logrus.Entry),
+) models.RepoState {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
 	repoName := repo.Name
 
 	if repo.RenameFrom != "" && repo.RenameFrom != repoName {
-		return bot.renameRepo(org, repo, log)
+		return bot.renameRepo(org, repo, log, hook)
 	}
 
 	err := bot.cli.CreateRepo(org, sdk.RepositoryPostParam{
@@ -38,6 +42,10 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) model
 
 		return models.RepoState{}
 	}
+
+	defer func() {
+		hook(repoName, log)
+	}()
 
 	if err := bot.initRepoReviewer(org, repoName); err != nil {
 		log.WithError(err).Errorf("initialize the reviewers for new created repo:%s", repoName)
@@ -76,7 +84,12 @@ func (bot *robot) createRepo(expectRepo expectRepoInfo, log *logrus.Entry) model
 	}
 }
 
-func (bot *robot) renameRepo(org string, repo *community.Repository, log *logrus.Entry) models.RepoState {
+func (bot *robot) renameRepo(
+	org string,
+	repo *community.Repository,
+	log *logrus.Entry,
+	hook func(string, *logrus.Entry),
+) models.RepoState {
 	repoName := repo.Name
 
 	err := bot.cli.UpdateRepo(
@@ -87,6 +100,12 @@ func (bot *robot) renameRepo(org string, repo *community.Repository, log *logrus
 			Path: repoName,
 		},
 	)
+
+	defer func(b bool) {
+		if b {
+			hook(repoName, log)
+		}
+	}(err == nil)
 
 	// if the err == nil, invoke 'getRepoState' obviously.
 	// if the err != nil, it is better to call 'getRepoState' to avoid the case that the repo already exists.
