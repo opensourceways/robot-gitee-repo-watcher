@@ -38,7 +38,6 @@ go_library(
         "@com_gitee_openeuler_go_gitee//gitee:go_default_library",
         "@com_github_opensourceways_community_robot_lib//config:go_default_library",
         "@com_github_opensourceways_community_robot_lib//giteeclient:go_default_library",
-        "@com_github_opensourceways_community_robot_lib//interrupts:go_default_library",
         "@com_github_opensourceways_community_robot_lib//logrusutil:go_default_library",
         "@com_github_opensourceways_community_robot_lib//options:go_default_library",
         "@com_github_opensourceways_community_robot_lib//secret:go_default_library",

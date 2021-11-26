@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/opensourceways/community-robot-lib/config"
 	"github.com/opensourceways/community-robot-lib/giteeclient"
-	"github.com/opensourceways/community-robot-lib/interrupts"
 	"github.com/opensourceways/community-robot-lib/logrusutil"
 	liboptions "github.com/opensourceways/community-robot-lib/options"
 	"github.com/opensourceways/community-robot-lib/secret"
@@ -62,17 +64,7 @@ func main() {
 
 	p := newRobot(c, pool)
 
-	defer interrupts.WaitForGracefulShutdown()
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	interrupts.OnInterrupt(func() {
-		cancel()
-	})
-
-	if err = p.run(ctx, &cfg); err != nil {
-		logrus.WithError(err).Error("start watching")
-	}
+	run(p, &cfg)
 }
 
 func newPool(size int, log ants.Logger) (*ants.Pool, error) {
@@ -117,4 +109,34 @@ func genClient(tokenPath string) (iClient, error) {
 
 	t := secretAgent.GetTokenGenerator(tokenPath)
 	return giteeclient.NewClient(t), nil
+}
+
+func run(bot *robot, cfg *botConfig) {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, done := context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func(ctx context.Context) {
+		defer wg.Done()
+
+		select {
+		case <-ctx.Done():
+			logrus.Info("receive done. exit normally")
+			return
+		case <-sig:
+			logrus.Info("receive exit signal")
+			done()
+			return
+		}
+	}(ctx)
+
+	if err := bot.run(ctx, cfg); err != nil {
+		logrus.WithError(err).Error("start watching")
+		done()
+	}
 }
