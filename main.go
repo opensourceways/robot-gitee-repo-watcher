@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
+	"github.com/opensourceways/community-robot-lib/config"
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	"github.com/opensourceways/community-robot-lib/interrupts"
 	"github.com/opensourceways/community-robot-lib/logrusutil"
@@ -17,70 +17,20 @@ import (
 )
 
 type options struct {
-	gitee          liboptions.GiteeOptions
-	watchingRepo   string
-	repoFilePath   string
-	sigFilePath    string
-	sigDir         string
-	concurrentSize int
-	interval       int
+	gitee      liboptions.GiteeOptions
+	configFile string
 }
 
 func (o *options) Validate() error {
-	_, err := o.parseWatchingRepo()
-	if err != nil {
-		return err
-	}
-
-	v := map[string]string{
-		o.repoFilePath: "repo-file-path",
-		o.sigFilePath:  "sig-file-path",
-		o.sigDir:       "sig-dir",
-	}
-	for p, s := range v {
-		if p == "" {
-			return fmt.Errorf("missing %v", s)
-		}
-	}
-
-	if o.concurrentSize <= 0 {
-		return fmt.Errorf("concurrent size must be bigger than 0")
-	}
-
 	return o.gitee.Validate()
-}
-
-func (o *options) parseWatchingRepo() (watchingRepoInfo, error) {
-	r := watchingRepoInfo{}
-
-	v := o.watchingRepo
-	items := strings.Split(v, "/")
-	if len(items) != 3 {
-		return r, fmt.Errorf("invalid watching-repo:%s", v)
-	}
-
-	for _, item := range items {
-		if item == "" {
-			return r, fmt.Errorf("invalid watching-repo:%s", v)
-		}
-	}
-
-	r.org = items[0]
-	r.repo = items[1]
-	r.branch = items[2]
-	return r, nil
 }
 
 func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	var o options
 
 	o.gitee.AddFlags(fs)
-	fs.StringVar(&o.watchingRepo, "watching-repo", "", "The repo which includes the repository and sig information that will be watched. The format is: org/repo/branch. For example: openeuler/community/master")
-	fs.StringVar(&o.repoFilePath, "repo-file-path", "", "Path to repo file. For example: repository/openeuler.yaml")
-	fs.StringVar(&o.sigFilePath, "sig-file-path", "", "Path to sig file. For example: sig/sigs.yaml")
-	fs.StringVar(&o.sigDir, "sig-dir", "", "The directory which includes all the sigs. For example: sig")
-	fs.IntVar(&o.concurrentSize, "concurrent-size", 500, "The concurrent size for doing task.")
-	fs.IntVar(&o.interval, "interval", 0, "The interval between repo checkes. 0 or unset means check repos consecutively. The unit is minute.")
+
+	fs.StringVar(&o.configFile, "config-file", "", "Path to config file.")
 
 	fs.Parse(args)
 	return o
@@ -94,15 +44,17 @@ func main() {
 		logrus.WithError(err).Fatal("Invalid options")
 	}
 
-	secretAgent := new(secret.Agent)
-	if err := secretAgent.Start([]string{o.gitee.TokenPath}); err != nil {
-		logrus.WithError(err).Fatal("Error starting secret agent.")
+	cfg, err := getConfig(o.configFile)
+	if err != nil {
+		logrus.WithError(err).Fatal("Error getting config.")
 	}
-	defer secretAgent.Stop()
 
-	c := giteeclient.NewClient(secretAgent.GetTokenGenerator(o.gitee.TokenPath))
+	c, err := genClient(o.gitee.TokenPath)
+	if err != nil {
+		logrus.WithError(err).Fatal("Error generating client.")
+	}
 
-	pool, err := newPool(o.concurrentSize, logWapper{})
+	pool, err := newPool(cfg.ConcurrentSize, logWapper{})
 	if err != nil {
 		logrus.WithError(err).Fatal("Error starting goroutine pool.")
 	}
@@ -118,7 +70,7 @@ func main() {
 		cancel()
 	})
 
-	if err = p.run(ctx, &o); err != nil {
+	if err = p.run(ctx, &cfg); err != nil {
 		logrus.WithError(err).Error("start watching")
 	}
 }
@@ -133,4 +85,36 @@ type logWapper struct{}
 
 func (l logWapper) Printf(format string, args ...interface{}) {
 	logrus.Infof(format, args...)
+}
+
+func getConfig(configFile string) (botConfig, error) {
+	agent := config.NewConfigAgent(func() config.PluginConfig {
+		return &configuration{}
+	})
+
+	if err := agent.Start(configFile); err != nil {
+		return botConfig{}, err
+	}
+
+	agent.Stop()
+
+	_, v := agent.GetConfig()
+
+	if cfg, ok := v.(*configuration); ok {
+		return cfg.Config, nil
+	}
+	return botConfig{}, fmt.Errorf("can't convert the configuration")
+}
+
+func genClient(tokenPath string) (iClient, error) {
+	secretAgent := new(secret.Agent)
+
+	if err := secretAgent.Start([]string{tokenPath}); err != nil {
+		return nil, err
+	}
+
+	secretAgent.Stop()
+
+	t := secretAgent.GetTokenGenerator(tokenPath)
+	return giteeclient.NewClient(t), nil
 }

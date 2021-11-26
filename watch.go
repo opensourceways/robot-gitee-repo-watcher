@@ -16,17 +16,17 @@ type expectRepoInfo struct {
 	org             string
 }
 
-func (bot *robot) run(ctx context.Context, opt *options) error {
+func (bot *robot) run(ctx context.Context, cfg *botConfig) error {
 	log := logrus.NewEntry(logrus.New())
 
-	w, _ := opt.parseWatchingRepo()
+	w := &cfg.WatchingFiles
 	expect := &expectState{
-		w:   w,
+		w:   w.repoBranch,
 		log: log,
 		cli: bot.cli,
 	}
 
-	org, err := expect.init(opt.repoFilePath, opt.sigFilePath, opt.sigDir)
+	org, err := expect.init(w.RepoFilePath, w.SigFilePath, w.SigDir)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (bot *robot) run(ctx context.Context, opt *options) error {
 		return err
 	}
 
-	bot.watch(ctx, org, local, expect, opt.interval)
+	bot.watch(ctx, org, local, expect, cfg.Interval)
 	return nil
 }
 

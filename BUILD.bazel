@@ -20,6 +20,7 @@ push_image(
 go_library(
     name = "go_default_library",
     srcs = [
+        "config.go",
         "expect.go",
         "handle_branch.go",
         "handle_member.go",
@@ -35,6 +36,7 @@ go_library(
         "//community:go_default_library",
         "//models:go_default_library",
         "@com_gitee_openeuler_go_gitee//gitee:go_default_library",
+        "@com_github_opensourceways_community_robot_lib//config:go_default_library",
         "@com_github_opensourceways_community_robot_lib//giteeclient:go_default_library",
         "@com_github_opensourceways_community_robot_lib//interrupts:go_default_library",
         "@com_github_opensourceways_community_robot_lib//logrusutil:go_default_library",

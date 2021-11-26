@@ -87,17 +87,11 @@ func (r *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
 	return nil
 }
 
-type watchingRepoInfo struct {
-	org    string
-	repo   string
-	branch string
-}
-
 type expectState struct {
 	log *logrus.Entry
 	cli iClient
 
-	w         watchingRepoInfo
+	w         repoBranch
 	sig       orgSigs
 	repos     expectRepos
 	sigDir    string
@@ -194,7 +188,7 @@ func (s *expectState) newWatchingFile(p string) watchingFile {
 }
 
 func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
-	trees, err := s.cli.GetDirectoryTree(s.w.org, s.w.repo, s.w.branch, 1)
+	trees, err := s.cli.GetDirectoryTree(s.w.Org, s.w.Repo, s.w.Branch, 1)
 	if err != nil || len(trees.Tree) == 0 {
 		return nil, err
 	}
@@ -209,7 +203,7 @@ func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
 }
 
 func (r *expectState) loadFile(path string) (string, string, error) {
-	c, err := r.cli.GetPathContent(r.w.org, r.w.repo, path, r.w.branch)
+	c, err := r.cli.GetPathContent(r.w.Org, r.w.Repo, path, r.w.Branch)
 	if err != nil {
 		return "", "", err
 	}
