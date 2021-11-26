@@ -127,7 +127,11 @@ func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, er
 	return org, nil
 }
 
-func (s *expectState) check(isStopped func() bool, callback func(*community.Repository, []string, *logrus.Entry)) {
+func (s *expectState) check(
+	isStopped func() bool,
+	clearLocal func(func(string) bool),
+	checkRepo func(*community.Repository, []string, *logrus.Entry),
+) {
 	allFiles, err := s.listAllFilesOfRepo()
 	if err != nil {
 		s.log.WithError(err).Error("list all file")
@@ -142,6 +146,16 @@ func (s *expectState) check(isStopped func() bool, callback func(*community.Repo
 	allRepos := s.repos.refresh(getSHA)
 	repoMap := allRepos.GetRepos()
 
+	if len(repoMap) == 0 {
+		// keep safe to do this. it is impossible to happen generally.
+		return
+	}
+
+	clearLocal(func(r string) bool {
+		_, ok := repoMap[r]
+		return ok
+	})
+
 	allSigs := s.sig.refresh(getSHA)
 	sigs := allSigs.GetSigs()
 	for i := range sigs {
@@ -155,7 +169,7 @@ func (s *expectState) check(isStopped func() bool, callback func(*community.Repo
 				break
 			}
 
-			callback(repoMap[repoName], owners.GetOwners(), s.log)
+			checkRepo(repoMap[repoName], owners.GetOwners(), s.log)
 
 			delete(repoMap, repoName)
 		}
@@ -170,7 +184,7 @@ func (s *expectState) check(isStopped func() bool, callback func(*community.Repo
 			break
 		}
 
-		callback(repo, nil, s.log)
+		checkRepo(repo, nil, s.log)
 	}
 }
 

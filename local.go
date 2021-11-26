@@ -19,6 +19,14 @@ func (r *localState) getOrNewRepo(repo string) *models.Repo {
 	return v
 }
 
+func (r *localState) clear(hasRepo func(string) bool) {
+	for k := range r.repos {
+		if !hasRepo(k) {
+			delete(r.repos, k)
+		}
+	}
+}
+
 func (bot *robot) loadALLRepos(org string) (*localState, error) {
 	items, err := bot.cli.GetRepos(org)
 	if err != nil {

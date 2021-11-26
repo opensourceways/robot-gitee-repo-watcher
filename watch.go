@@ -96,7 +96,7 @@ func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, 
 		return isCancelled(ctx)
 	}
 
-	expect.check(isStopped, f)
+	expect.check(isStopped, local.clear, f)
 }
 
 func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo, log *logrus.Entry) error {
