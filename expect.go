@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"path/filepath"
+	"path"
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
@@ -15,7 +15,7 @@ type watchingFile struct {
 	log      *logrus.Entry
 	loadFile func(string) (string, string, error)
 
-	path string
+	file string
 	sha  string
 	obj  interface{}
 }
@@ -23,19 +23,19 @@ type watchingFile struct {
 type getSHAFunc func(string) string
 
 func (w *watchingFile) update(f getSHAFunc, newObject func() interface{}) {
-	if sha := f(w.path); sha == "" || sha == w.sha {
+	if sha := f(w.file); sha == "" || sha == w.sha {
 		return
 	}
 
-	c, sha, err := w.loadFile(w.path)
+	c, sha, err := w.loadFile(w.file)
 	if err != nil {
-		w.log.WithError(err).Errorf("load file:%s", w.path)
+		w.log.WithError(err).Errorf("load file:%s", w.file)
 		return
 	}
 
 	v := newObject()
 	if err := decodeYamlFile(c, v); err != nil {
-		w.log.WithError(err).Errorf("decode file:%s", w.path)
+		w.log.WithError(err).Errorf("decode file:%s", w.file)
 	} else {
 		w.obj = v
 		w.sha = sha
@@ -46,12 +46,12 @@ type expectRepos struct {
 	wf watchingFile
 }
 
-func (r *expectRepos) refresh(f getSHAFunc) *community.Repos {
-	r.wf.update(f, func() interface{} {
+func (e *expectRepos) refresh(f getSHAFunc) *community.Repos {
+	e.wf.update(f, func() interface{} {
 		return new(community.Repos)
 	})
 
-	if v, ok := r.wf.obj.(*community.Repos); ok {
+	if v, ok := e.wf.obj.(*community.Repos); ok {
 		return v
 	}
 	return nil
@@ -61,12 +61,12 @@ type orgSigs struct {
 	wf watchingFile
 }
 
-func (r *orgSigs) refresh(f getSHAFunc) *community.Sigs {
-	r.wf.update(f, func() interface{} {
+func (s *orgSigs) refresh(f getSHAFunc) *community.Sigs {
+	s.wf.update(f, func() interface{} {
 		return new(community.Sigs)
 	})
 
-	if v, ok := r.wf.obj.(*community.Sigs); ok {
+	if v, ok := s.wf.obj.(*community.Sigs); ok {
 		return v
 	}
 	return nil
@@ -76,12 +76,12 @@ type expectSigOwners struct {
 	wf watchingFile
 }
 
-func (r *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
-	r.wf.update(f, func() interface{} {
+func (e *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
+	e.wf.update(f, func() interface{} {
 		return new(community.RepoOwners)
 	})
 
-	if v, ok := r.wf.obj.(*community.RepoOwners); ok {
+	if v, ok := e.wf.obj.(*community.RepoOwners); ok {
 		return v
 	}
 	return nil
@@ -169,7 +169,7 @@ func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
 	if !ok {
 		o = &expectSigOwners{
 			wf: s.newWatchingFile(
-				filepath.Join(s.sigDir, sigName, "OWNERS"),
+				path.Join(s.sigDir, sigName, "OWNERS"),
 			),
 		}
 
@@ -181,7 +181,7 @@ func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
 
 func (s *expectState) newWatchingFile(p string) watchingFile {
 	return watchingFile{
-		path:     p,
+		file:     p,
 		log:      s.log,
 		loadFile: s.loadFile,
 	}
@@ -202,8 +202,8 @@ func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
 	return r, nil
 }
 
-func (r *expectState) loadFile(path string) (string, string, error) {
-	c, err := r.cli.GetPathContent(r.w.Org, r.w.Repo, path, r.w.Branch)
+func (s *expectState) loadFile(f string) (string, string, error) {
+	c, err := s.cli.GetPathContent(s.w.Org, s.w.Repo, f, s.w.Branch)
 	if err != nil {
 		return "", "", err
 	}

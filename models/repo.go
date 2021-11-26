@@ -26,7 +26,7 @@ func NewRepo(repo string, state RepoState) *Repo {
 	return &Repo{
 		name:  repo,
 		state: state,
-		start: make(chan struct{}),
+		start: make(chan struct{}, 1),
 	}
 }
 

@@ -26,7 +26,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	// add new
 	if v := expect.Difference(lm); v.Len() > 0 {
 		for k := range v {
-			// how about adding a memeber but he/she exits?
+			// how about adding a member but he/she exits? see the comment of 'addRepoMember'
 			if err := bot.addRepoMember(org, repo, k); err != nil {
 				log.WithError(err).Errorf("add member:%s to repo:%s", k, repo)
 			} else {

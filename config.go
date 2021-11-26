@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 )
 
 type configuration struct {
@@ -60,7 +60,7 @@ type obsMetaProject struct {
 }
 
 func (o *obsMetaProject) genProjectFilePath(p string) string {
-	return filepath.Join(o.ProjectDir, p, o.ProjectFileName)
+	return path.Join(o.ProjectDir, p, o.ProjectFileName)
 }
 
 func (o *obsMetaProject) validate() error {

@@ -21,9 +21,10 @@ func (bot *robot) run(ctx context.Context, cfg *botConfig) error {
 
 	w := &cfg.WatchingFiles
 	expect := &expectState{
-		w:   w.repoBranch,
-		log: log,
-		cli: bot.cli,
+		w:         w.repoBranch,
+		log:       log,
+		cli:       bot.cli,
+		sigOwners: make(map[string]*expectSigOwners),
 	}
 
 	org, err := expect.init(w.RepoFilePath, w.SigFilePath, w.SigDir)

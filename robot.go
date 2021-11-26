@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/panjf2000/ants/v2"
 	"sync"
 
 	sdk "gitee.com/openeuler/go-gitee/gitee"
+	"github.com/panjf2000/ants/v2"
 )
 
 const botName = "repo-watcher"
