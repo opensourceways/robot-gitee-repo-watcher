@@ -19,9 +19,9 @@ func (r *localState) getOrNewRepo(repo string) *models.Repo {
 	return v
 }
 
-func (r *localState) clear(hasRepo func(string) bool) {
+func (r *localState) clear(isExpectedRepo func(string) bool) {
 	for k := range r.repos {
-		if !hasRepo(k) {
+		if !isExpectedRepo(k) {
 			delete(r.repos, k)
 		}
 	}

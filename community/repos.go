@@ -144,13 +144,20 @@ func (s *Sig) validate() error {
 
 type RepoOwners struct {
 	Maintainers []string `json:"maintainers,omitempty"`
+	Committers  []string `yaml:"committers,omitempty"`
 }
 
 func (r *RepoOwners) GetOwners() []string {
 	if r == nil {
 		return nil
 	}
-	return r.Maintainers
+
+	v := r.Maintainers
+	if len(r.Committers) > 0 {
+		v = append(v, r.Committers...)
+	}
+
+	return v
 }
 
 func (r *RepoOwners) Validate() error {

@@ -79,6 +79,17 @@ func (o *obsMetaProject) validate() error {
 	return nil
 }
 
+func newTemplate(path string) (string, error) {
+	v, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf(
+			"read template file failed: %s",
+			err.Error(),
+		)
+	}
+	return string(v), nil
+}
+
 func (o *obsMetaProject) genProjectFilePath(p string) string {
 	return path.Join(o.ProjectDir, p, o.ProjectFileName)
 }
@@ -116,15 +127,4 @@ func (c *botConfig) validate() error {
 		return c.OBSMetaProject.validate()
 	}
 	return nil
-}
-
-func newTemplate(path string) (string, error) {
-	v, err := ioutil.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf(
-			"read template file failed: %s",
-			err.Error(),
-		)
-	}
-	return string(v), nil
 }

@@ -17,10 +17,10 @@ func (bot *robot) createRepo(
 ) models.RepoState {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
-	repoName := repo.Name
+	repoName := expectRepo.getNewRepoName()
 
-	if repo.RenameFrom != "" && repo.RenameFrom != repoName {
-		return bot.renameRepo(org, repo, log, hook)
+	if n := repo.RenameFrom; n != "" && n != repoName {
+		return bot.renameRepo(org, repoName, n, log, hook)
 	}
 
 	err := bot.cli.CreateRepo(org, sdk.RepositoryPostParam{
@@ -85,37 +85,35 @@ func (bot *robot) createRepo(
 }
 
 func (bot *robot) renameRepo(
-	org string,
-	repo *community.Repository,
+	org, newRepo, oldRepo string,
 	log *logrus.Entry,
 	hook func(string, *logrus.Entry),
 ) models.RepoState {
-	repoName := repo.Name
-
 	err := bot.cli.UpdateRepo(
 		org,
-		repo.RenameFrom,
+		oldRepo,
 		sdk.RepoPatchParam{
-			Name: repoName,
-			Path: repoName,
+			Name: newRepo,
+			Path: newRepo,
 		},
 	)
 
 	defer func(b bool) {
 		if b {
-			hook(repoName, log)
+			hook(newRepo, log)
 		}
 	}(err == nil)
 
 	// if the err == nil, invoke 'getRepoState' obviously.
-	// if the err != nil, it is better to call 'getRepoState' to avoid the case that the repo already exists.
-	l := log.WithField("action", "rename from repo:"+repo.RenameFrom)
-	if s, b := bot.getRepoState(org, repoName, l); b {
+	// if the err != nil, it is better to call 'getRepoState' to
+	// avoid the case that the repo already exists.
+	l := log.WithField("action", "rename from repo:"+oldRepo)
+	if s, b := bot.getRepoState(org, newRepo, l); b {
 		return s
 	}
 
 	if err != nil {
-		log.WithError(err).Errorf("rename repo:%s to %s", repo.RenameFrom, repoName)
+		log.WithError(err).Errorf("rename repo:%s to %s", oldRepo, newRepo)
 
 		return models.RepoState{}
 	}
@@ -153,8 +151,8 @@ func (bot *robot) initRepoReviewer(org, repo string) error {
 		org,
 		repo,
 		sdk.SetRepoReviewer{
-			Assignees:       " ", //TODO need set to " "?
-			Testers:         " ",
+			Assignees:       " ", // This parameter is a required one according to the Gitee API
+			Testers:         " ", // Ditto
 			AssigneesNumber: 0,
 			TestersNumber:   0,
 		},
@@ -164,7 +162,7 @@ func (bot *robot) initRepoReviewer(org, repo string) error {
 func (bot *robot) updateRepo(expectRepo expectRepoInfo, lp models.RepoProperty, log *logrus.Entry) models.RepoProperty {
 	org := expectRepo.org
 	repo := expectRepo.expectRepoState
-	repoName := repo.Name
+	repoName := expectRepo.getNewRepoName()
 
 	ep := repo.IsPrivate()
 	ec := repo.Commentable

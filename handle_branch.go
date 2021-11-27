@@ -7,9 +7,13 @@ import (
 	"github.com/opensourceways/robot-gitee-repo-watcher/community"
 )
 
-func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []community.RepoBranch, log *logrus.Entry) []community.RepoBranch {
+func (bot *robot) handleBranch(
+	expectRepo expectRepoInfo,
+	localBranches []community.RepoBranch,
+	log *logrus.Entry,
+) []community.RepoBranch {
 	org := expectRepo.org
-	repo := expectRepo.expectRepoState.Name
+	repo := expectRepo.getNewRepoName()
 
 	if len(localBranches) == 0 {
 		v, err := bot.listAllBranchOfRepo(org, repo)
@@ -58,7 +62,11 @@ func (bot *robot) handleBranch(expectRepo expectRepoInfo, localBranches []commun
 	return newState
 }
 
-func (bot *robot) createBranch(org, repo string, branch community.RepoBranch, log *logrus.Entry) (community.RepoBranch, bool) {
+func (bot *robot) createBranch(
+	org, repo string,
+	branch community.RepoBranch,
+	log *logrus.Entry,
+) (community.RepoBranch, bool) {
 	ref := branch.CreateFrom
 	if ref == "" {
 		// ref must be passed according to the gitee api and the default value is "master"

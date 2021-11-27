@@ -108,10 +108,10 @@ type expectState struct {
 	sigOwners map[string]*expectSigOwners
 }
 
-func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, error) {
-	s.repos = expectRepos{s.newWatchingFile(repoFilePath)}
+func (e *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, error) {
+	e.repos = expectRepos{e.newWatchingFile(repoFilePath)}
 
-	v := s.repos.refresh(func(string) string {
+	v := e.repos.refresh(func(string) string {
 		return "init"
 	})
 
@@ -120,21 +120,20 @@ func (s *expectState) init(repoFilePath, sigFilePath, sigDir string) (string, er
 		return "", fmt.Errorf("load repository failed")
 	}
 
-	s.sig = orgSigs{s.newWatchingFile(sigFilePath)}
-
-	s.sigDir = sigDir
+	e.sig = orgSigs{e.newWatchingFile(sigFilePath)}
+	e.sigDir = sigDir
 
 	return org, nil
 }
 
-func (s *expectState) check(
+func (e *expectState) check(
 	isStopped func() bool,
 	clearLocal func(func(string) bool),
 	checkRepo func(*community.Repository, []string, *logrus.Entry),
 ) {
-	allFiles, err := s.listAllFilesOfRepo()
+	allFiles, err := e.listAllFilesOfRepo()
 	if err != nil {
-		s.log.WithError(err).Error("list all file")
+		e.log.WithError(err).Error("list all file")
 
 		allFiles = make(map[string]string)
 	}
@@ -143,7 +142,7 @@ func (s *expectState) check(
 		return allFiles[p]
 	}
 
-	allRepos := s.repos.refresh(getSHA)
+	allRepos := e.repos.refresh(getSHA)
 	repoMap := allRepos.GetRepos()
 
 	if len(repoMap) == 0 {
@@ -156,12 +155,12 @@ func (s *expectState) check(
 		return ok
 	})
 
-	allSigs := s.sig.refresh(getSHA)
+	allSigs := e.sig.refresh(getSHA)
 	sigs := allSigs.GetSigs()
 	for i := range sigs {
 		sig := &sigs[i]
 
-		sigOwner := s.getSigOwner(sig.Name)
+		sigOwner := e.getSigOwner(sig.Name)
 		owners := sigOwner.refresh(getSHA)
 
 		for _, repoName := range sig.Repositories {
@@ -169,7 +168,7 @@ func (s *expectState) check(
 				break
 			}
 
-			checkRepo(repoMap[repoName], owners.GetOwners(), s.log)
+			checkRepo(repoMap[repoName], owners.GetOwners(), e.log)
 
 			delete(repoMap, repoName)
 		}
@@ -184,35 +183,35 @@ func (s *expectState) check(
 			break
 		}
 
-		checkRepo(repo, nil, s.log)
+		checkRepo(repo, nil, e.log)
 	}
 }
 
-func (s *expectState) getSigOwner(sigName string) *expectSigOwners {
-	o, ok := s.sigOwners[sigName]
+func (e *expectState) getSigOwner(sigName string) *expectSigOwners {
+	o, ok := e.sigOwners[sigName]
 	if !ok {
 		o = &expectSigOwners{
-			wf: s.newWatchingFile(
-				path.Join(s.sigDir, sigName, "OWNERS"),
+			wf: e.newWatchingFile(
+				path.Join(e.sigDir, sigName, "OWNERS"),
 			),
 		}
 
-		s.sigOwners[sigName] = o
+		e.sigOwners[sigName] = o
 	}
 
 	return o
 }
 
-func (s *expectState) newWatchingFile(p string) watchingFile {
+func (e *expectState) newWatchingFile(p string) watchingFile {
 	return watchingFile{
 		file:     p,
-		log:      s.log,
-		loadFile: s.loadFile,
+		log:      e.log,
+		loadFile: e.loadFile,
 	}
 }
 
-func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
-	trees, err := s.cli.GetDirectoryTree(s.w.Org, s.w.Repo, s.w.Branch, 1)
+func (e *expectState) listAllFilesOfRepo() (map[string]string, error) {
+	trees, err := e.cli.GetDirectoryTree(e.w.Org, e.w.Repo, e.w.Branch, 1)
 	if err != nil || len(trees.Tree) == 0 {
 		return nil, err
 	}
@@ -226,8 +225,8 @@ func (s *expectState) listAllFilesOfRepo() (map[string]string, error) {
 	return r, nil
 }
 
-func (s *expectState) loadFile(f string) (string, string, error) {
-	c, err := s.cli.GetPathContent(s.w.Org, s.w.Repo, f, s.w.Branch)
+func (e *expectState) loadFile(f string) (string, string, error) {
+	c, err := e.cli.GetPathContent(e.w.Org, e.w.Repo, f, e.w.Branch)
 	if err != nil {
 		return "", "", err
 	}

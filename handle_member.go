@@ -7,7 +7,7 @@ import (
 
 func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string, log *logrus.Entry) []string {
 	org := expectRepo.org
-	repo := expectRepo.expectRepoState.Name
+	repo := expectRepo.getNewRepoName()
 
 	if len(localMembers) == 0 {
 		v, err := bot.cli.GetRepo(org, repo)
@@ -20,8 +20,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 
 	expect := sets.NewString(expectRepo.expectOwners...)
 	lm := sets.NewString(localMembers...)
-
-	newMembers := expect.Intersection(lm).UnsortedList()
+	r := expect.Intersection(lm).UnsortedList()
 
 	// add new
 	if v := expect.Difference(lm); v.Len() > 0 {
@@ -30,7 +29,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 			if err := bot.addRepoMember(org, repo, k); err != nil {
 				log.WithError(err).Errorf("add member:%s to repo:%s", k, repo)
 			} else {
-				newMembers = append(newMembers, k)
+				r = append(r, k)
 			}
 		}
 	}
@@ -41,12 +40,12 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 			if err := bot.cli.RemoveRepoMember(org, repo, k); err != nil {
 				log.WithError(err).Errorf("remove member:%s from repo:%s", k, repo)
 
-				newMembers = append(newMembers, k)
+				r = append(r, k)
 			}
 		}
 	}
 
-	return newMembers
+	return r
 }
 
 // Gitee api will be successful even if adding a member repeatedly.

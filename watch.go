@@ -16,6 +16,10 @@ type expectRepoInfo struct {
 	org             string
 }
 
+func (e *expectRepoInfo) getNewRepoName() string {
+	return e.expectRepoState.Name
+}
+
 func (bot *robot) run(ctx context.Context) error {
 	log := logrus.NewEntry(logrus.New())
 

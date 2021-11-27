@@ -12,7 +12,6 @@ func (bot *robot) createOBSMetaProject(repo string, log *logrus.Entry) {
 	}
 
 	project := &bot.cfg.OBSMetaProject
-
 	path := project.genProjectFilePath(repo)
 	b := &project.Branch
 
