@@ -7,28 +7,27 @@ import (
 )
 
 func (bot *robot) createOBSMetaProject(repo string, log *logrus.Entry) {
-	cfg := bot.cfg
-	if !cfg.EnableCreatingOBSMetaProject {
+	if !bot.cfg.EnableCreatingOBSMetaProject {
 		return
 	}
 
-	cfgOBS := &cfg.ObsMetaProject
+	project := &bot.cfg.OBSMetaProject
 
-	path := cfgOBS.genProjectFilePath(repo)
-	b := &cfgOBS.Branch
+	path := project.genProjectFilePath(repo)
+	b := &project.Branch
 
 	// file exists
 	if _, err := bot.cli.GetPathContent(b.Org, b.Repo, path, b.Branch); err == nil {
 		return
 	}
 
-	content, err := cfgOBS.genProjectFileContent(repo)
+	content, err := project.genProjectFileContent(repo)
 	if err != nil {
 		log.WithError(err).Errorf("generate file of project:%s", repo)
 		return
 	}
 
-	w := &cfg.WatchingFiles
+	w := &bot.cfg.WatchingFiles
 	msg := fmt.Sprintf(
 		"add project according to the file: %s/%s/%s:%s",
 		w.Org, w.Repo, w.Branch, w.RepoFilePath,

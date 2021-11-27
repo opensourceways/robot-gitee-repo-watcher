@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"path"
-	"text/template"
+	"strings"
+
+	"github.com/huaweicloud/golangsdk"
 )
 
 type configuration struct {
@@ -44,7 +45,8 @@ type watchingFiles struct {
 }
 
 func (w *watchingFiles) validate() error {
-	return nil
+	_, err := golangsdk.BuildRequestBody(w, "")
+	return err
 }
 
 // obsMetaProject includes the information about the obs meta repo and the new project
@@ -60,35 +62,29 @@ type obsMetaProject struct {
 
 	// ProjectTemplatePath is the template file path which describes the new project
 	ProjectTemplatePath string `json:"project_template_path" required:"true"`
-	projectTemplate     template.Template
+	projectTemplate     string `json:"-"`
+}
+
+func (o *obsMetaProject) validate() error {
+	if _, err := golangsdk.BuildRequestBody(o, ""); err != nil {
+		return err
+	}
+
+	t, err := newTemplate(o.ProjectTemplatePath)
+	if err != nil {
+		return err
+	}
+	o.projectTemplate = t
+
+	return nil
 }
 
 func (o *obsMetaProject) genProjectFilePath(p string) string {
 	return path.Join(o.ProjectDir, p, o.ProjectFileName)
 }
 
-func (o *obsMetaProject) validate() error {
-	t, err := newTemplate("", o.ProjectTemplatePath)
-	if err != nil {
-		return err
-	}
-	o.projectTemplate = *t
-
-	return nil
-}
-
 func (o *obsMetaProject) genProjectFileContent(p string) (string, error) {
-	data := struct {
-		Project string
-	}{p}
-
-	buf := new(bytes.Buffer)
-
-	if err := o.projectTemplate.Execute(buf, data); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return strings.Replace(o.projectTemplate, "#projectname#", p, 1), nil
 }
 
 type botConfig struct {
@@ -104,7 +100,7 @@ type botConfig struct {
 	// EnableCreatingOBSMetaProject is the switch of creating project in obs meta repo
 	EnableCreatingOBSMetaProject bool `json:"enable_creating_obs_meta_project,omitempty"`
 
-	ObsMetaProject obsMetaProject `json:"obs_meta_project"`
+	OBSMetaProject obsMetaProject `json:"obs_meta_project"`
 }
 
 func (c *botConfig) validate() error {
@@ -117,27 +113,18 @@ func (c *botConfig) validate() error {
 	}
 
 	if c.EnableCreatingOBSMetaProject {
-		return c.ObsMetaProject.validate()
+		return c.OBSMetaProject.validate()
 	}
 	return nil
 }
 
-func newTemplate(name, path string) (*template.Template, error) {
-	txtStr, err := ioutil.ReadFile(path)
+func newTemplate(path string) (string, error) {
+	v, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to new template: read template file failed: %s",
+		return "", fmt.Errorf(
+			"read template file failed: %s",
 			err.Error(),
 		)
 	}
-
-	tmpl, err := template.New(name).Parse(string(txtStr))
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to new template: build template failed: %s",
-			err.Error(),
-		)
-	}
-
-	return tmpl, nil
+	return string(v), nil
 }

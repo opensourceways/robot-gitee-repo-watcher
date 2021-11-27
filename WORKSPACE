@@ -820,8 +820,8 @@ go_repository(
 go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
-    sum = "h1:psW17arqaxU48Z5kZ0CQnkZWQJsqcURM6tKiBApRjXI=",
-    version = "v0.0.0-20200622213623-75b288015ac9",
+    sum = "h1:vclmkQCjlDX5OydZ9wv8rBCcS0QyQY66Mpf/7BZbInM=",
+    version = "v0.0.0-20200820211705-5c72a883971a",
 )
 
 go_repository(
@@ -920,4 +920,11 @@ go_repository(
     importpath = "golang.org/x/xerrors",
     sum = "h1:go1bK/D/BFZV2I8cIQd1NKEZ+0owSTG1fDTci4IqFcE=",
     version = "v0.0.0-20200804184101-5ec99f83aff1",
+)
+
+go_repository(
+    name = "com_github_huaweicloud_golangsdk",
+    importpath = "github.com/huaweicloud/golangsdk",
+    sum = "h1:KFikP/B8lypq9FTWlxm366g0hVsnLBIV6EwAS4SQcKw=",
+    version = "v0.0.0-20210831081626-d823fe11ceba",
 )
