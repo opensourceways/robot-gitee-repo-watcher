@@ -73,6 +73,19 @@ func (r *Repository) validate() error {
 		}
 	}
 
+	if n := len(r.ProtectedBranches); n > 0 {
+		v := make([]RepoBranch, n)
+		for i, item := range r.ProtectedBranches {
+			v[i] = RepoBranch{Name: item, Type: BranchProtected}
+		}
+
+		if len(r.Branches) > 0 {
+			r.Branches = append(r.Branches, v...)
+		} else {
+			r.Branches = v
+		}
+	}
+
 	return nil
 }
 
