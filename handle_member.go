@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -12,7 +14,7 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	if len(localMembers) == 0 {
 		v, err := bot.cli.GetRepo(org, repo)
 		if err != nil {
-			log.WithError(err).Errorf("get repo:%s when handling repo members", repo)
+			log.Errorf("handle repo members and get repo:%s, err:%s", repo, err.Error())
 			return nil
 		}
 		localMembers = v.Members
@@ -25,9 +27,12 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	// add new
 	if v := expect.Difference(lm); v.Len() > 0 {
 		for k := range v {
+			l := log.WithField("add member", fmt.Sprintf("%s:%s", repo, k))
+			l.Info("start")
+
 			// how about adding a member but he/she exits? see the comment of 'addRepoMember'
 			if err := bot.addRepoMember(org, repo, k); err != nil {
-				log.WithError(err).Errorf("add member:%s to repo:%s", k, repo)
+				l.Error(err)
 			} else {
 				r = append(r, k)
 			}
@@ -37,8 +42,11 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	// remove
 	if v := lm.Difference(expect); v.Len() > 0 {
 		for k := range v {
+			l := log.WithField("remove member", fmt.Sprintf("%s:%s", repo, k))
+			l.Info("start")
+
 			if err := bot.cli.RemoveRepoMember(org, repo, k); err != nil {
-				log.WithError(err).Errorf("remove member:%s from repo:%s", k, repo)
+				l.Error(err)
 
 				r = append(r, k)
 			}

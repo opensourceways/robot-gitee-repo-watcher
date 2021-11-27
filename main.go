@@ -119,6 +119,8 @@ func run(bot *robot) {
 	defer wg.Wait()
 
 	ctx, done := context.WithCancel(context.Background())
+	// it seems that it will be ok even if invoking 'done' twice.
+	defer done()
 
 	wg.Add(1)
 	go func(ctx context.Context) {
@@ -135,8 +137,9 @@ func run(bot *robot) {
 		}
 	}(ctx)
 
-	if err := bot.run(ctx); err != nil {
-		logrus.WithError(err).Error("start watching")
-		done()
+	log := logrus.NewEntry(logrus.New())
+
+	if err := bot.run(ctx, log); err != nil {
+		log.Errorf("start watching, err:%s", err.Error())
 	}
 }

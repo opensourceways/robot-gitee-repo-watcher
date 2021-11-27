@@ -33,19 +33,19 @@ func (w *watchingFile) update(f getSHAFunc, newObject func() watchingFileObject)
 
 	c, sha, err := w.loadFile(w.file)
 	if err != nil {
-		w.log.WithError(err).Errorf("load file:%s", w.file)
+		w.log.Errorf("load file:%s, err:%s", w.file, err.Error())
 		return
 	}
 
 	v := newObject()
 
 	if err := decodeYamlFile(c, v); err != nil {
-		w.log.WithError(err).Errorf("decode file:%s", w.file)
+		w.log.Errorf("decode file:%s, err:%s", w.file, err.Error())
 		return
 	}
 
 	if err := v.Validate(); err != nil {
-		w.log.WithError(err).Errorf("validate the data of file:%s", w.file)
+		w.log.Errorf("validate the data of file:%s, err:%s", w.file, err.Error())
 	} else {
 		w.obj = v
 		w.sha = sha
@@ -133,7 +133,7 @@ func (e *expectState) check(
 ) {
 	allFiles, err := e.listAllFilesOfRepo()
 	if err != nil {
-		e.log.WithError(err).Error("list all file")
+		e.log.Errorf("list all file, err:%s", err.Error())
 
 		allFiles = make(map[string]string)
 	}
@@ -147,6 +147,7 @@ func (e *expectState) check(
 
 	if len(repoMap) == 0 {
 		// keep safe to do this. it is impossible to happen generally.
+		e.log.Warning("there are not repos. Impossible!!!")
 		return
 	}
 

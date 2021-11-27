@@ -20,9 +20,7 @@ func (e *expectRepoInfo) getNewRepoName() string {
 	return e.expectRepoState.Name
 }
 
-func (bot *robot) run(ctx context.Context) error {
-	log := logrus.NewEntry(logrus.New())
-
+func (bot *robot) run(ctx context.Context, log *logrus.Entry) error {
 	w := &bot.cfg.WatchingFiles
 	expect := &expectState{
 		w:         w.repoBranch,
@@ -46,9 +44,7 @@ func (bot *robot) run(ctx context.Context) error {
 }
 
 func (bot *robot) watch(ctx context.Context, org string, local *localState, expect *expectState) {
-	interval := bot.cfg.Interval
-
-	if interval <= 0 {
+	if interval := bot.cfg.Interval; interval <= 0 {
 		for {
 			if isCancelled(ctx) {
 				break
@@ -94,7 +90,7 @@ func (bot *robot) checkOnce(ctx context.Context, org string, local *localState, 
 			log,
 		)
 		if err != nil {
-			log.WithError(err).Errorf("submit task of repo:%s", repo.Name)
+			log.Errorf("submit task of repo:%s, err:%s", repo.Name, err.Error())
 		}
 	}
 

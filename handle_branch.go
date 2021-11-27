@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -18,7 +20,7 @@ func (bot *robot) handleBranch(
 	if len(localBranches) == 0 {
 		v, err := bot.listAllBranchOfRepo(org, repo)
 		if err != nil {
-			log.WithError(err).Errorf("list all branch of repo:%s", repo)
+			log.Errorf("handle branch and list all branch of repo:%s, err:%s", repo, err.Error())
 			return nil
 		}
 		localBranches = v
@@ -34,6 +36,9 @@ func (bot *robot) handleBranch(
 			eb := bsExpect.get(name)
 			lb := bsLocal.get(name)
 			if eb.Type != lb.Type {
+				l := log.WithField("update branch", fmt.Sprintf("%s/%s", repo, name))
+				l.Info("start")
+
 				err := bot.updateBranch(
 					org, repo, name, eb.Type == community.BranchProtected,
 				)
@@ -41,9 +46,7 @@ func (bot *robot) handleBranch(
 					newState = append(newState, *eb)
 					continue
 				} else {
-					logrus.WithError(err).WithField("type", eb.Type).Errorf(
-						"update branch:%s of repo:%s", name, repo,
-					)
+					l.WithField("type", eb.Type).Error(err)
 				}
 			}
 			newState = append(newState, *lb)
@@ -73,22 +76,20 @@ func (bot *robot) createBranch(
 		ref = "master"
 	}
 
+	log = log.WithField("create branch", fmt.Sprintf("%s/%s", repo, branch.Name))
+	log.Info("start")
+
 	err := bot.cli.CreateBranch(org, repo, branch.Name, ref)
 	if err != nil {
 		if _, err1 := bot.cli.GetRef(org, repo, branch.Name); err1 != nil {
-			log.WithError(err).WithField("CreateFrom", ref).Errorf(
-				"create branch:%s of repo:%s", branch.Name, repo,
-			)
+			log.WithField("CreateFrom", ref).Error(err)
 			return community.RepoBranch{}, false
 		}
 	}
 
 	if branch.Type == community.BranchProtected {
 		if err := bot.cli.SetProtectionBranch(org, repo, branch.Name); err != nil {
-			log.WithError(err).Errorf(
-				"set the branch:%s of repo:%s to be protected when creating it",
-				branch.Name, repo,
-			)
+			log.Errorf("set the branch to be protected, err:%s", err.Error())
 
 			return community.RepoBranch{
 				Name:       branch.Name,

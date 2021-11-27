@@ -22,7 +22,7 @@ func (bot *robot) createOBSMetaProject(repo string, log *logrus.Entry) {
 
 	content, err := project.genProjectFileContent(repo)
 	if err != nil {
-		log.WithError(err).Errorf("generate file of project:%s", repo)
+		log.Errorf("generate file of project:%s, err:%s", repo, err.Error())
 		return
 	}
 
@@ -34,6 +34,6 @@ func (bot *robot) createOBSMetaProject(repo string, log *logrus.Entry) {
 
 	_, err = bot.cli.CreateFile(b.Org, b.Repo, b.Branch, path, content, msg)
 	if err != nil {
-		log.WithError(err).Errorf("ceate file: %s", path)
+		log.Errorf("ceate file: %s, err:%s", path, err.Error())
 	}
 }
