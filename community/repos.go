@@ -1,6 +1,9 @@
 package community
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const BranchProtected = "protected"
 
@@ -140,6 +143,15 @@ func (s *Sig) validate() error {
 		return fmt.Errorf("missing name")
 	}
 	return nil
+}
+
+func (s *Sig) GetRepos(org string) []string {
+	p := org + "/"
+	v := make([]string, len(s.Repositories))
+	for i, r := range s.Repositories {
+		v[i] = strings.TrimPrefix(r, p)
+	}
+	return v
 }
 
 type RepoOwners struct {

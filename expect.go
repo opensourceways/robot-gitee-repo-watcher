@@ -164,7 +164,7 @@ func (e *expectState) check(
 		sigOwner := e.getSigOwner(sig.Name)
 		owners := sigOwner.refresh(getSHA)
 
-		for _, repoName := range sig.Repositories {
+		for _, repoName := range sig.GetRepos(allRepos.GetCommunity()) {
 			if isStopped() {
 				break
 			}
