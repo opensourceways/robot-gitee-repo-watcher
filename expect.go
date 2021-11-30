@@ -148,7 +148,7 @@ func (e *expectState) check(
 
 	if len(repoMap) == 0 {
 		// keep safe to do this. it is impossible to happen generally.
-		e.log.Warning("there are not repos. Impossible!!!, ", len(allRepos.Repositories))
+		e.log.Warning("there are not repos. Impossible!!!")
 		return
 	}
 
@@ -179,6 +179,10 @@ func (e *expectState) check(
 		if isStopped() {
 			break
 		}
+	}
+
+	if len(repoMap) == done.Len() {
+		return
 	}
 
 	for k, repo := range repoMap {

@@ -37,7 +37,7 @@ func (bot *robot) createRepo(
 		Private:     repo.IsPrivate(),
 	})
 	if err != nil {
-		log.Warning("repo exits already")
+		log.Warning("repo exists already")
 
 		if s, b := bot.getRepoState(org, repoName, log); b {
 			return s

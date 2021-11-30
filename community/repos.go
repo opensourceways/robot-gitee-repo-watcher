@@ -31,6 +31,10 @@ func (r *Repos) GetRepos() map[string]*Repository {
 }
 
 func (r *Repos) Validate() error {
+	if r == nil {
+		return fmt.Errorf("empty repos")
+	}
+
 	for i := range r.Repositories {
 		if err := r.Repositories[i].validate(); err != nil {
 			return err
@@ -128,10 +132,15 @@ func (s *Sigs) GetSigs() []Sig {
 	if s == nil {
 		return nil
 	}
+
 	return s.Items
 }
 
 func (s *Sigs) Validate() error {
+	if s == nil {
+		return fmt.Errorf("empty sigs")
+	}
+
 	for i := range s.Items {
 		if err := s.Items[i].validate(); err != nil {
 			return err
@@ -151,6 +160,7 @@ func (s *Sig) GetRepos() []string {
 	if s == nil {
 		return nil
 	}
+
 	return s.repos
 }
 
@@ -192,16 +202,16 @@ func (r *RepoOwners) GetOwners() []string {
 }
 
 func (r *RepoOwners) Validate() error {
+	if r == nil {
+		return fmt.Errorf("empty repo owners")
+	}
+
 	r.convert()
 
 	return nil
 }
 
 func (r *RepoOwners) convert() {
-	if r == nil {
-		return
-	}
-
 	o := make([]string, len(r.Maintainers)+len(r.Committers))
 	i := 0
 
