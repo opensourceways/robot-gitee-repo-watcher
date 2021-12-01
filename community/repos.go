@@ -157,6 +157,7 @@ func (s *Sigs) Validate() error {
 		}
 	}
 
+	s.doStat()
 	return nil
 }
 
@@ -164,7 +165,6 @@ func (s *Sigs) doStat() {
 	m := make(map[string]int)
 	for i := range s.Items {
 		item := s.Items[i].Repositories
-
 		for _, r := range item {
 			m[r] += 1
 		}

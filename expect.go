@@ -127,13 +127,18 @@ func (e *expectRepoOwners) getOwners(repoName string, owners *community.RepoOwne
 }
 
 func genExpectRepoOwners(allSigs *community.Sigs) expectRepoOwners {
-	e := expectRepoOwners{
-		repoWithMultiSigs: allSigs.GetRepoWithMultiSigs(),
+	r := allSigs.GetRepoWithMultiSigs()
+	if r == nil {
+		r = make(map[string]int)
 	}
 
-	if len(e.repoWithMultiSigs) > 0 {
+	e := expectRepoOwners{
+		repoWithMultiSigs: r,
+	}
+
+	if len(r) > 0 {
 		v := make(map[string][]*community.RepoOwners)
-		for k, n := range e.repoWithMultiSigs {
+		for k, n := range r {
 			v[k] = make([]*community.RepoOwners, n)
 		}
 
