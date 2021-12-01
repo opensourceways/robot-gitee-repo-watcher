@@ -98,6 +98,51 @@ func (e *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
 	return nil
 }
 
+type expectRepoOwners struct {
+	repoWithMultiSigs map[string]int
+	ownersOfRepo      map[string][]*community.RepoOwners
+}
+
+func (e *expectRepoOwners) getOwners(repoName string, owners *community.RepoOwners) ([]string, bool) {
+	n, ok := e.repoWithMultiSigs[repoName]
+	if !ok {
+		return owners.GetOwners(), true
+	}
+
+	if n--; n > 0 {
+		e.repoWithMultiSigs[repoName] = n
+		e.ownersOfRepo[repoName][n] = owners
+		return nil, false
+	}
+
+	v := e.ownersOfRepo[repoName]
+	v[n] = owners
+
+	r := make([]string, 0, len(v))
+	for _, o := range v {
+		r = append(r, o.GetOwners()...)
+	}
+
+	return r, true
+}
+
+func genExpectRepoOwners(allSigs *community.Sigs) expectRepoOwners {
+	e := expectRepoOwners{
+		repoWithMultiSigs: allSigs.GetRepoWithMultiSigs(),
+	}
+
+	if len(e.repoWithMultiSigs) > 0 {
+		v := make(map[string][]*community.RepoOwners)
+		for k, n := range e.repoWithMultiSigs {
+			v[k] = make([]*community.RepoOwners, n)
+		}
+
+		e.ownersOfRepo = v
+	}
+
+	return e
+}
+
 type expectState struct {
 	log *logrus.Entry
 	cli iClient
@@ -159,16 +204,9 @@ func (e *expectState) check(
 
 	done := sets.NewString()
 	allSigs := e.sig.refresh(getSHA)
-	sigs := allSigs.GetSigs()
-	repoWithMultiSigs := allSigs.GetRepoWithMultiSigs()
-	var ownersOfRepoWithMultiSigs map[string][]*community.RepoOwners
-	if len(repoWithMultiSigs) > 0 {
-		ownersOfRepoWithMultiSigs = make(map[string][]*community.RepoOwners)
-		for k, n := range repoWithMultiSigs {
-			ownersOfRepoWithMultiSigs[k] = make([]*community.RepoOwners, n)
-		}
-	}
+	repoOwners := genExpectRepoOwners(allSigs)
 
+	sigs := allSigs.GetSigs()
 	for i := range sigs {
 		sig := &sigs[i]
 
@@ -180,25 +218,9 @@ func (e *expectState) check(
 				break
 			}
 
-			if n, ok := repoWithMultiSigs[repoName]; !ok {
-				checkRepo(repoMap[repoName], owners.GetOwners(), e.log)
+			if v, ok := repoOwners.getOwners(repoName, owners); ok {
+				checkRepo(repoMap[repoName], v, e.log)
 				done.Insert(repoName)
-			} else {
-				if n--; n != 0 {
-					repoWithMultiSigs[repoName] = n
-					ownersOfRepoWithMultiSigs[repoName][n] = owners
-				} else {
-					or := ownersOfRepoWithMultiSigs[repoName]
-					or[n] = owners
-
-					v := make([]string, 0, len(or))
-					for _, o := range or {
-						v = append(v, o.GetOwners()...)
-					}
-
-					checkRepo(repoMap[repoName], v, e.log)
-					done.Insert(repoName)
-				}
 			}
 		}
 
