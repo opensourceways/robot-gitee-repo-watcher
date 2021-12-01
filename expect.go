@@ -160,6 +160,15 @@ func (e *expectState) check(
 	done := sets.NewString()
 	allSigs := e.sig.refresh(getSHA)
 	sigs := allSigs.GetSigs()
+	repoWithMultiSigs := allSigs.GetRepoWithMultiSigs()
+	var ownersOfRepoWithMultiSigs map[string][]*community.RepoOwners
+	if len(repoWithMultiSigs) > 0 {
+		ownersOfRepoWithMultiSigs = make(map[string][]*community.RepoOwners)
+		for k, n := range repoWithMultiSigs {
+			ownersOfRepoWithMultiSigs[k] = make([]*community.RepoOwners, n)
+		}
+	}
+
 	for i := range sigs {
 		sig := &sigs[i]
 
@@ -171,9 +180,26 @@ func (e *expectState) check(
 				break
 			}
 
-			checkRepo(repoMap[repoName], owners.GetOwners(), e.log)
+			if n, ok := repoWithMultiSigs[repoName]; !ok {
+				checkRepo(repoMap[repoName], owners.GetOwners(), e.log)
+				done.Insert(repoName)
+			} else {
+				if n--; n != 0 {
+					repoWithMultiSigs[repoName] = n
+					ownersOfRepoWithMultiSigs[repoName][n] = owners
+				} else {
+					or := ownersOfRepoWithMultiSigs[repoName]
+					or[n] = owners
 
-			done.Insert(repoName)
+					v := make([]string, 0, len(or))
+					for _, o := range or {
+						v = append(v, o.GetOwners()...)
+					}
+
+					checkRepo(repoMap[repoName], v, e.log)
+					done.Insert(repoName)
+				}
+			}
 		}
 
 		if isStopped() {
