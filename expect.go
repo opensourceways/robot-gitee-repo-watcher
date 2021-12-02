@@ -127,9 +127,10 @@ func (e *expectRepoOwners) getOwners(repoName string, owners *community.RepoOwne
 }
 
 func genExpectRepoOwners(allSigs *community.Sigs) expectRepoOwners {
-	r := allSigs.GetRepoWithMultiSigs()
-	if r == nil {
-		r = make(map[string]int)
+	// must copy the repos because the number will be changeed in `getOwners` method
+	r := make(map[string]int)
+	for k, v := range allSigs.GetRepoWithMultiSigs() {
+		r[k] = v
 	}
 
 	e := expectRepoOwners{

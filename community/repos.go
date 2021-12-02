@@ -164,7 +164,7 @@ func (s *Sigs) Validate() error {
 func (s *Sigs) doStat() {
 	m := make(map[string]int)
 	for i := range s.Items {
-		item := s.Items[i].Repositories
+		item := s.Items[i].repos
 		for _, r := range item {
 			m[r] += 1
 		}
