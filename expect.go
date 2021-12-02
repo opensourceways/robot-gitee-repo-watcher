@@ -98,6 +98,57 @@ func (e *expectSigOwners) refresh(f getSHAFunc) *community.RepoOwners {
 	return nil
 }
 
+type expectRepoOwners struct {
+	repoWithMultiSigs map[string]int
+	ownersOfRepo      map[string][]*community.RepoOwners
+}
+
+func (e *expectRepoOwners) getOwners(repoName string, owners *community.RepoOwners) ([]string, bool) {
+	n, ok := e.repoWithMultiSigs[repoName]
+	if !ok {
+		return owners.GetOwners(), true
+	}
+
+	if n--; n > 0 {
+		e.repoWithMultiSigs[repoName] = n
+		e.ownersOfRepo[repoName][n] = owners
+		return nil, false
+	}
+
+	v := e.ownersOfRepo[repoName]
+	v[n] = owners
+
+	r := make([]string, 0, len(v))
+	for _, o := range v {
+		r = append(r, o.GetOwners()...)
+	}
+
+	return r, true
+}
+
+func genExpectRepoOwners(allSigs *community.Sigs) expectRepoOwners {
+	// must copy the repos because the number will be changeed in `getOwners` method
+	r := make(map[string]int)
+	for k, v := range allSigs.GetRepoWithMultiSigs() {
+		r[k] = v
+	}
+
+	e := expectRepoOwners{
+		repoWithMultiSigs: r,
+	}
+
+	if len(r) > 0 {
+		v := make(map[string][]*community.RepoOwners)
+		for k, n := range r {
+			v[k] = make([]*community.RepoOwners, n)
+		}
+
+		e.ownersOfRepo = v
+	}
+
+	return e
+}
+
 type expectState struct {
 	log *logrus.Entry
 	cli iClient
@@ -159,6 +210,8 @@ func (e *expectState) check(
 
 	done := sets.NewString()
 	allSigs := e.sig.refresh(getSHA)
+	repoOwners := genExpectRepoOwners(allSigs)
+
 	sigs := allSigs.GetSigs()
 	for i := range sigs {
 		sig := &sigs[i]
@@ -171,9 +224,10 @@ func (e *expectState) check(
 				break
 			}
 
-			checkRepo(repoMap[repoName], owners.GetOwners(), e.log)
-
-			done.Insert(repoName)
+			if v, ok := repoOwners.getOwners(repoName, owners); ok {
+				checkRepo(repoMap[repoName], v, e.log)
+				done.Insert(repoName)
+			}
 		}
 
 		if isStopped() {

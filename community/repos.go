@@ -140,6 +140,8 @@ func (r *RepoBranch) validate() error {
 
 type Sigs struct {
 	Items []Sig `json:"sigs,omitempty"`
+
+	repoWithMultiSigs map[string]int `json:"-"`
 }
 
 func (s *Sigs) GetSigs() []Sig {
@@ -148,6 +150,14 @@ func (s *Sigs) GetSigs() []Sig {
 	}
 
 	return s.Items
+}
+
+func (s *Sigs) GetRepoWithMultiSigs() map[string]int {
+	if s == nil {
+		return nil
+	}
+
+	return s.repoWithMultiSigs
 }
 
 func (s *Sigs) Validate() error {
@@ -161,7 +171,27 @@ func (s *Sigs) Validate() error {
 		}
 	}
 
+	s.doStat()
 	return nil
+}
+
+func (s *Sigs) doStat() {
+	m := make(map[string]int)
+	for i := range s.Items {
+		item := s.Items[i].repos
+		for _, r := range item {
+			m[r] += 1
+		}
+	}
+
+	v := make(map[string]int)
+	for k, n := range m {
+		if n > 1 {
+			v[k] = n
+		}
+	}
+
+	s.repoWithMultiSigs = v
 }
 
 type Sig struct {
