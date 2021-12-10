@@ -21,7 +21,7 @@ func (bot *robot) createRepo(
 	repoName := expectRepo.getNewRepoName()
 
 	if n := repo.RenameFrom; n != "" && n != repoName {
-		return bot.renameRepo(org, repoName, n, log, hook)
+		return bot.renameRepo(expectRepo, log, hook)
 	}
 
 	log = log.WithField("create repo", repoName)
@@ -32,6 +32,8 @@ func (bot *robot) createRepo(
 		log.Warning("repo exists already")
 
 		if s, b := bot.getRepoState(org, repoName, log); b {
+			s.Branches = bot.handleBranch(expectRepo, s.Branches, log)
+			s.Members = bot.handleMember(expectRepo, s.Members, log)
 			return s
 		}
 
@@ -123,10 +125,14 @@ func (bot *robot) initNewlyCreatedRepo(
 }
 
 func (bot *robot) renameRepo(
-	org, newRepo, oldRepo string,
+	expectRepo expectRepoInfo,
 	log *logrus.Entry,
 	hook func(string, *logrus.Entry),
 ) models.RepoState {
+	org := expectRepo.org
+	oldRepo := expectRepo.expectRepoState.RenameFrom
+	newRepo := expectRepo.getNewRepoName()
+
 	log = log.WithField("rename repo", fmt.Sprintf("from %s to %s", oldRepo, newRepo))
 	log.Info("start")
 
@@ -149,6 +155,8 @@ func (bot *robot) renameRepo(
 	// if the err != nil, it is better to call 'getRepoState' to
 	// avoid the case that the repo already exists.
 	if s, b := bot.getRepoState(org, newRepo, log); b {
+		s.Branches = bot.handleBranch(expectRepo, s.Branches, log)
+		s.Members = bot.handleMember(expectRepo, s.Members, log)
 		return s
 	}
 
