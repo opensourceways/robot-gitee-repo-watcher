@@ -93,22 +93,22 @@ func (bot *robot) initNewlyCreatedRepo(
 	}
 	for _, item := range repoBranches {
 		if item.Name == community.BranchMaster {
-			if item.Type == community.BranchProtected {
-				if err := bot.updateBranch(org, repoName, item.Name, true); err == nil {
-					branches[0].Type = community.BranchProtected
-				} else {
-					log.WithFields(logrus.Fields{
-						"update branch": fmt.Sprintf("%s/%s", repoName, item.Name),
-						"type":          item.Type,
-					}).Error(err)
-				}
+			if item.Type != community.BranchProtected {
+				continue
 			}
 
-			continue
-		}
-
-		if b, ok := bot.createBranch(org, repoName, item, log); ok {
-			branches = append(branches, b)
+			if err := bot.updateBranch(org, repoName, item.Name, true); err == nil {
+				branches[0].Type = community.BranchProtected
+			} else {
+				log.WithFields(logrus.Fields{
+					"update branch": fmt.Sprintf("%s/%s", repoName, item.Name),
+					"type":          item.Type,
+				}).Error(err)
+			}
+		} else {
+			if b, ok := bot.createBranch(org, repoName, item, log); ok {
+				branches = append(branches, b)
+			}
 		}
 	}
 
