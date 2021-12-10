@@ -57,10 +57,21 @@ func (bot *robot) createRepo(
 	}
 
 	branches := []community.RepoBranch{
-		{Name: "master"},
+		{Name: community.BranchMaster},
 	}
 	for _, item := range repo.Branches {
-		if item.Name == "master" {
+		if item.Name == community.BranchMaster {
+			if item.Type == community.BranchProtected {
+				if err = bot.updateBranch(org, repoName, item.Name, true); err == nil {
+					branches[0].Type = community.BranchProtected
+				} else {
+					log.WithFields(logrus.Fields{
+						"update branch", fmt.Sprintf("%s/%s", repo, repoName),
+						"type", item.Type,
+					}).Error(err)
+				}
+			}
+
 			continue
 		}
 

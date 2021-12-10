@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const BranchProtected = "protected"
+const (
+	BranchMaster    = "master"
+	BranchProtected = "protected"
+)
 
 type Repos struct {
 	Version      string       `json:"version,omitempty"`
