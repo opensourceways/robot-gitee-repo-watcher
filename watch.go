@@ -112,7 +112,7 @@ func (bot *robot) execTask(localRepo *models.Repo, expectRepo expectRepoInfo, lo
 		return models.RepoState{
 			Available: true,
 			Branches:  bot.handleBranch(expectRepo, before.Branches, log),
-			Members:   bot.handleMember(expectRepo, before.Members, log),
+			Members:   bot.handleMember(expectRepo, before.Members, before.Owner, log),
 			Property:  bot.updateRepo(expectRepo, before.Property, log),
 		}
 	}
