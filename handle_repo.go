@@ -27,15 +27,7 @@ func (bot *robot) createRepo(
 	log = log.WithField("create repo", repoName)
 	log.Info("start")
 
-	err := bot.cli.CreateRepo(org, sdk.RepositoryPostParam{
-		Name:        repoName,
-		Description: repo.Description,
-		HasIssues:   true,
-		HasWiki:     true,
-		AutoInit:    true, // set `auto_init` as true to initialize `master` branch with README after repo creation
-		CanComment:  repo.Commentable,
-		Private:     repo.IsPrivate(),
-	})
+	property, err := bot.newRepo(org, repo)
 	if err != nil {
 		log.Warning("repo exists already")
 
@@ -52,6 +44,44 @@ func (bot *robot) createRepo(
 		hook(repoName, log)
 	}()
 
+	branches, members := bot.initNewlyCreatedRepo(
+		org, repoName, repo.Branches, expectRepo.expectOwners, log,
+	)
+
+	return models.RepoState{
+		Available: true,
+		Branches:  branches,
+		Members:   members,
+		Property:  property,
+	}
+}
+
+func (bot *robot) newRepo(org string, repo *community.Repository) (models.RepoProperty, error) {
+	err := bot.cli.CreateRepo(org, sdk.RepositoryPostParam{
+		Name:        repo.Name,
+		Description: repo.Description,
+		HasIssues:   true,
+		HasWiki:     true,
+		AutoInit:    true, // set `auto_init` as true to initialize `master` branch with README after repo creation
+		CanComment:  repo.Commentable,
+		Private:     repo.IsPrivate(),
+	})
+	if err != nil {
+		return models.RepoProperty{}, err
+	}
+
+	return models.RepoProperty{
+		CanComment: repo.Commentable,
+		Private:    repo.IsPrivate(),
+	}, nil
+}
+
+func (bot *robot) initNewlyCreatedRepo(
+	org, repoName string,
+	repoBranches []community.RepoBranch,
+	repoOwners []string,
+	log *logrus.Entry,
+) ([]community.RepoBranch, []string) {
 	if err := bot.initRepoReviewer(org, repoName); err != nil {
 		log.Errorf("initialize the reviewers, err:%s", err.Error())
 	}
@@ -59,15 +89,15 @@ func (bot *robot) createRepo(
 	branches := []community.RepoBranch{
 		{Name: community.BranchMaster},
 	}
-	for _, item := range repo.Branches {
+	for _, item := range repoBranches {
 		if item.Name == community.BranchMaster {
 			if item.Type == community.BranchProtected {
-				if err = bot.updateBranch(org, repoName, item.Name, true); err == nil {
+				if err := bot.updateBranch(org, repoName, item.Name, true); err == nil {
 					branches[0].Type = community.BranchProtected
 				} else {
 					log.WithFields(logrus.Fields{
-						"update branch", fmt.Sprintf("%s/%s", repo, repoName),
-						"type", item.Type,
+						"update branch": fmt.Sprintf("%s/%s", repoName, item.Name),
+						"type":          item.Type,
 					}).Error(err)
 				}
 			}
@@ -81,7 +111,7 @@ func (bot *robot) createRepo(
 	}
 
 	members := []string{}
-	for _, item := range expectRepo.expectOwners {
+	for _, item := range repoOwners {
 		if err := bot.addRepoMember(org, repoName, item); err != nil {
 			log.Errorf("add member:%s, err:%s", item, err)
 		} else {
@@ -89,15 +119,7 @@ func (bot *robot) createRepo(
 		}
 	}
 
-	return models.RepoState{
-		Available: true,
-		Branches:  branches,
-		Members:   members,
-		Property: models.RepoProperty{
-			CanComment: repo.Commentable,
-			Private:    repo.IsPrivate(),
-		},
-	}
+	return branches, members
 }
 
 func (bot *robot) renameRepo(
