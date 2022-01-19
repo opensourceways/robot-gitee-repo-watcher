@@ -42,26 +42,28 @@ func (bot *robot) handleMember(expectRepo expectRepoInfo, localMembers []string,
 	}
 
 	// remove
-	if v := lm.Difference(expect); v.Len() > 0 {
-		o := *repoOwner
+	/*
+		if v := lm.Difference(expect); v.Len() > 0 {
+			o := *repoOwner
 
-		for k := range v {
-			if k == o {
-				// Gitee does not allow to remove the repo owner.
-				continue
-			}
+			for k := range v {
+				if k == o {
+					// Gitee does not allow to remove the repo owner.
+					continue
+				}
 
-			l := log.WithField("remove member", fmt.Sprintf("%s:%s", repo, k))
-			l.Info("start")
+				l := log.WithField("remove member", fmt.Sprintf("%s:%s", repo, k))
+				l.Info("start")
 
-			if err := bot.cli.RemoveRepoMember(org, repo, k); err != nil {
-				l.Error(err)
+				if err := bot.cli.RemoveRepoMember(org, repo, k); err != nil {
+					l.Error(err)
 
-				r = append(r, k)
+					r = append(r, k)
+				}
 			}
 		}
-	}
 
+	*/
 	return r
 }
 
